@@ -1,0 +1,6 @@
+wait(2)
+InstallApk(facebook)
+OpenApp(com.facebook.lite)
+wait(5)
+KEYCODE_BACK
+UninstallApp(com.facebook.lite)
