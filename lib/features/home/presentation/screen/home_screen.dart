@@ -23,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: BlocProvider<HomeCubit>(
-        create: (context) => sl()..getDevices(),
+        create: (context) => sl()..init(),
         child: HomeView(),
       ),
     );

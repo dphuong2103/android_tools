@@ -5,6 +5,7 @@ import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/database_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
+import 'package:android_tools/features/home/domain/entity/adb_command.dart';
 import 'package:android_tools/features/home/domain/entity/device.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -29,6 +30,7 @@ const waitCommand = "Wait";
 const swipeCommand = "Swipe";
 const installApkCommand = "InstallApk";
 const uninstallAppCommand = "UninstallApp";
+const rebootBootloader = "Bootloader";
 
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(const HomeState());
@@ -43,6 +45,7 @@ class HomeCubit extends Cubit<HomeState> {
     waitCommand,
     installApkCommand,
     uninstallAppCommand,
+    rebootBootloader
   ];
 
   final AdbService adbService = sl();
@@ -223,35 +226,49 @@ class HomeCubit extends Cubit<HomeState> {
     try {
       if (command == "KEYCODE_HOME".toLowerCase()) {
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          "input keyevent KEYCODE_HOME",
+          deviceSerials: deviceIps,
+          command: KeyCommand("KEYCODE_HOME"),
         );
       }
       if (command == "KEYCODE_BACK".toLowerCase()) {
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          "input keyevent KEYCODE_BACK",
+          deviceSerials: deviceIps,
+          command: KeyCommand("KEYCODE_BACK"),
         );
       }
 
       if (command == "KEYCODE_APP_SWITCH".toLowerCase()) {
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          "input keyevent KEYCODE_APP_SWITCH",
+          deviceSerials: deviceIps,
+          command: KeyCommand("KEYCODE_APP_SWITCH"),
         );
       }
 
-      if (command.toLowerCase() == rebootCommand.toLowerCase()) {
+      if (command == rebootCommand.toLowerCase()) {
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          command,
+          deviceSerials: deviceIps,
+          command: RebootCommand(),
         );
-      } else if (command.toLowerCase().startsWith(keyCodeCommand.toLowerCase())) {
+      } else if (command.startsWith(
+        keyCodeCommand.toLowerCase(),
+      )) {
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          "input keyevent $command",
+          deviceSerials: deviceIps,
+          command: KeyCommand(command),
         );
-      } else if (command.toLowerCase().startsWith(openAppCommand.toLowerCase())) {
+
+      }
+      else if (command.startsWith(
+        rebootBootloader.toLowerCase(),
+      )) {
+        results = await adbService.runCommandOnMultipleDevices(
+          deviceSerials: deviceIps,
+          command: RebootBootLoaderCommand(),
+        );
+      }
+      else if (command.startsWith(
+        openAppCommand.toLowerCase(),
+      )) {
         var packageName = getValueInsideParentheses(command);
         var commandResults = await openApp(deviceIps, packageName);
         if (commandResults != null) {
@@ -261,8 +278,8 @@ class HomeCubit extends Cubit<HomeState> {
         var packageName = getValueInsideParentheses(command);
         if (packageName == null) return;
         results = await adbService.runCommandOnMultipleDevices(
-          deviceIps,
-          "am force-stop $packageName",
+          deviceSerials: deviceIps,
+          command: ClosePackageCommand(packageName),
         );
       } else if (command.startsWith(runScriptCommand.toLowerCase())) {
         var scriptName = getValueInsideParentheses(command);
@@ -290,7 +307,7 @@ class HomeCubit extends Cubit<HomeState> {
         for (var scriptCommand in scripts!) {
           await runCommand(scriptCommand);
         }
-      } else if (command.toLowerCase().startsWith(tapCommand.toLowerCase())) {
+      } else if (command.startsWith(tapCommand.toLowerCase())) {
         String? position = getValueInsideParentheses(command);
         if (position == null || position.isEmpty) {
           logCubit.log(
@@ -303,8 +320,8 @@ class HomeCubit extends Cubit<HomeState> {
           double? y = double.tryParse(position.split(" ")[1]);
           if (x != null && y != null) {
             results = await adbService.runCommandOnMultipleDevices(
-              deviceIps,
-              "input tap $x $y",
+              deviceSerials: deviceIps,
+              command: TapCommand(x: x, y:y),
             );
           }
         }
@@ -322,15 +339,21 @@ class HomeCubit extends Cubit<HomeState> {
           double? x2 = double.tryParse(swipeData.split(" ")[2]);
           double? y2 = double.tryParse(swipeData.split(" ")[3]);
           int? duration = int.tryParse(swipeData.split(" ")[4]);
-          if (x1 == null && y1 == null ||
+          if (x1 == null || y1 == null ||
               x2 == null ||
               y2 == null ||
               duration == null) {
             logCubit.log(title: "Invalid swipe input", type: LogType.ERROR);
           } else {
             results = await adbService.runCommandOnMultipleDevices(
-              deviceIps,
-              "input swipe $x1 $y1 $x2 $y2 $duration",
+              deviceSerials: deviceIps,
+              command: SwipeCommand(
+                startX: x1,
+                startY: y1,
+                endX: x2,
+                endY: y2,
+                duration: duration
+              ),
             );
           }
         }
@@ -362,7 +385,9 @@ class HomeCubit extends Cubit<HomeState> {
               state.devices.map((device) {
                 if (!device.isSelected) return device;
 
-                var result = results.firstWhereOrNull((r) => r.ip == device.ip);
+                var result = results.firstWhereOrNull(
+                  (r) => r.serialNumber == device.ip,
+                );
                 if (result == null) {
                   return device;
                 }
@@ -454,7 +479,7 @@ class HomeCubit extends Cubit<HomeState> {
       whereArgs: deviceSerials,
     );
 
-    await adbService.runCommandOnMultipleDevices(deviceSerials, "disconnect");
+    await adbService.runCommandOnMultipleDevices(deviceSerials: deviceSerials, command: DisconnectCommand());
     await getDevices();
   }
 
@@ -525,9 +550,8 @@ class HomeCubit extends Cubit<HomeState> {
     String apkPath = await apkFileService.filePath(apkName);
     apkPath = apkPath.replaceAll("/", "\\");
     return adbService.runCommandOnMultipleDevices(
-      deviceSerials,
-      "install \"$apkPath\"",
-      commandType: CommandType.withoutShell,
+      deviceSerials: deviceSerials,
+      command: InstallApkCommand(apkPath)
     );
   }
 
@@ -544,13 +568,11 @@ class HomeCubit extends Cubit<HomeState> {
       return null;
     }
     return adbService.runCommandOnMultipleDevices(
-      deviceSerials,
-      "uninstall \"$packageName\"",
-      commandType: CommandType.withoutShell,
+        deviceSerials: deviceSerials,
+        command: UninstallAppCommand(packageName)
     );
   }
 
-  //com.facebook.lite
   Future<List<AdbResult>?> openApp(
     List<String> deviceSerials,
     String? packageName,
@@ -563,9 +585,9 @@ class HomeCubit extends Cubit<HomeState> {
       );
       return null;
     }
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials,
-      "monkey -p \"$packageName\" -c android.intent.category.LAUNCHER 1 ",
+    return await adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: OpenPackageCommand(packageName),
     );
   }
 }
