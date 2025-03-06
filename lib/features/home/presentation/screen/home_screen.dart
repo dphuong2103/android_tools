@@ -1,7 +1,9 @@
+import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/home/presentation/widget/log_item.dart';
 import 'package:data_table_2/data_table_2.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -38,13 +40,16 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  String? selectedTimeZone;
   var ipController = TextEditingController();
   var commandController = TextEditingController();
+  var geoController = TextEditingController();
 
   @override
   void dispose() {
     ipController.dispose();
     commandController.dispose();
+    geoController.dispose();
     super.dispose();
   }
 
@@ -167,7 +172,7 @@ class _HomeViewState extends State<HomeView> {
                             var hasSelectDevice = state.devices
                                 .firstWhereOrNull(
                                   (device) => device.isSelected,
-                            );
+                                );
                             if (hasSelectDevice == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -244,6 +249,105 @@ class _HomeViewState extends State<HomeView> {
                             );
                           },
                         ),
+                        Gap(2),
+                        DropdownButtonHideUnderline(
+                          child: DropdownButton2<String>(
+                            isExpanded: true,
+                            hint: Text(
+                              'Select Geo',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            items: buildTimezoneList(),
+                            value: selectedTimeZone,
+                            onChanged: (value) {
+                              setState(() {
+                                selectedTimeZone = value;
+                              });
+                            },
+                            buttonStyleData: const ButtonStyleData(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              height: 40,
+                              width: 200,
+                            ),
+                            dropdownStyleData: const DropdownStyleData(
+                              maxHeight: 200,
+                            ),
+                            menuItemStyleData: const MenuItemStyleData(
+                              height: 40,
+                            ),
+                            dropdownSearchData: DropdownSearchData(
+                              searchController: geoController,
+                              searchInnerWidgetHeight: 50,
+                              searchInnerWidget: Container(
+                                height: 50,
+                                padding: const EdgeInsets.only(
+                                  top: 8,
+                                  bottom: 4,
+                                  right: 8,
+                                  left: 8,
+                                ),
+                                child: TextFormField(
+                                  expands: true,
+                                  maxLines: null,
+                                  controller: geoController,
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    hintText: 'Search for an item...',
+                                    hintStyle: const TextStyle(fontSize: 12),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              searchMatchFn: (item, searchValue) {
+                                return item.value.toString().contains(
+                                  searchValue,
+                                );
+                              },
+                            ),
+                            //This to clear the search value when you close the menu
+                            onMenuStateChange: (isOpen) {
+                              if (!isOpen) {
+                                geoController.clear();
+                              }
+                            },
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            if (selectedTimeZone == null || selectedTimeZone!.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Please select 1 timezone",
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            var hasSelectDevice = state.devices
+                                .firstWhereOrNull(
+                                  (device) => device.isSelected,
+                                );
+                            if (hasSelectDevice == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Please select at least 1 device",
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<HomeCubit>().runCommand("$changeTimezone(${timezoneMap[selectedTimeZone]})");
+                          },
+                          child: Text("Change Geo"),
+                        ),
                       ],
                     ),
                     Expanded(
@@ -254,16 +358,23 @@ class _HomeViewState extends State<HomeView> {
                             child: DataTable2(
                               isHorizontalScrollBarVisible: true,
                               onSelectAll: (bool? isSelectAll) {
-                                context.read<HomeCubit>().onSelectAll(isSelectAll);
+                                context.read<HomeCubit>().onSelectAll(
+                                  isSelectAll,
+                                );
                               },
                               headingCheckboxTheme: const CheckboxThemeData(
-                                side: BorderSide(color: Colors.white, width: 2.0),
+                                side: BorderSide(
+                                  color: Colors.white,
+                                  width: 2.0,
+                                ),
                               ),
                               columns: const [
                                 DataColumn(label: Text('IP')),
                                 DataColumn(label: Text('Connection Status')),
-                                DataColumn2(label: Text('Command Status'),
-                                  size: ColumnSize.L
+                                DataColumn(label: Text('Geo')),
+                                DataColumn2(
+                                  label: Text('Command Status'),
+                                  size: ColumnSize.L,
                                 ),
                                 DataColumn(label: Text('Actions')),
                                 // New column for actions
@@ -284,6 +395,25 @@ class _HomeViewState extends State<HomeView> {
                                           cells: [
                                             DataCell(Text(device.ip)),
                                             DataCell(Text(device.status ?? "")),
+                                            DataCell(
+                                              Text(
+                                                (device.geo != null &&
+                                                        device.geo!.isNotEmpty)
+                                                    ? timezoneMap.entries
+                                                        .firstWhere(
+                                                          (entry) =>
+                                                              entry.value ==
+                                                              device.geo,
+                                                          orElse:
+                                                              () => MapEntry(
+                                                                "",
+                                                                "",
+                                                              ), // Default case if not found
+                                                        )
+                                                        .key
+                                                    : "",
+                                              ),
+                                            ),
                                             DataCell(
                                               Text(device.commandStatus ?? ""),
                                             ),
@@ -319,15 +449,19 @@ class _HomeViewState extends State<HomeView> {
                                       .toList(),
                             ),
                           ),
-                          Flexible(child:BlocConsumer<LogCubit, LogState>(
-                            listener: (context, logState){},
-                            builder: (context, logState){
-                              return ListView.builder(
+                          Flexible(
+                            child: BlocConsumer<LogCubit, LogState>(
+                              listener: (context, logState) {},
+                              builder: (context, logState) {
+                                return ListView.builder(
                                   itemCount: logState.logs.length,
-                                  itemBuilder: (context,index){
-                                return LogItem(log: logState.logs[index]);
-                              });
-                            } ))
+                                  itemBuilder: (context, index) {
+                                    return LogItem(log: logState.logs[index]);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -399,5 +533,18 @@ class _HomeViewState extends State<HomeView> {
         );
       },
     );
+  }
+
+  List<DropdownMenuItem<String>> buildTimezoneList() {
+    return timezoneMap.entries.map((entry) {
+      return DropdownMenuItem<String>(
+        value: entry.key,
+        child: Text(
+          entry.key,
+          style: const TextStyle(fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList();
   }
 }

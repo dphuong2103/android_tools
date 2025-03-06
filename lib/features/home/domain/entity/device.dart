@@ -23,6 +23,7 @@ class Device with _$Device {
     @Default("not_connected") String? status,
     @Default(false) bool isSelected,
     String? commandStatus,
+    String? geo,
   }) = _Device;
 
   factory Device.fromJson(Map<String, dynamic> json) => _$DeviceFromJson(json);

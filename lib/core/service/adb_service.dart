@@ -100,9 +100,21 @@ class AdbService {
         serialNumber,
       ),
       RebootCommand() => _withSerial("shell reboot", serialNumber),
-      RebootBootLoaderCommand() => _withSerial("reboot bootloader", serialNumber),
+      RebootBootLoaderCommand() => _withSerial(
+        "reboot bootloader",
+        serialNumber,
+      ),
       KeyCommand(key: var key) => _withSerial(
         'shell input keyevent $key',
+        serialNumber,
+      ),
+      GetTimeZoneCommand() => _withSerial(
+        "shell getprop persist.sys.timezone",
+        serialNumber,
+      ),
+    // setprop persist.sys.timezone "America/Chicago"
+      ChangeTimeZoneCommand(timeZone: var timeZone) => _withSerial(
+        "shell service call alarm 3 s16 $timeZone",
         serialNumber,
       ),
       _ => throw UnsupportedError('Unknown command'),

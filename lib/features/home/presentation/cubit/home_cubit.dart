@@ -31,6 +31,8 @@ const swipeCommand = "Swipe";
 const installApkCommand = "InstallApk";
 const uninstallAppCommand = "UninstallApp";
 const rebootBootloader = "Bootloader";
+const changeTimezone = "ChangeTimeZone";
+const changeLocation = "ChangeLocation";
 
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(const HomeState());
@@ -45,7 +47,9 @@ class HomeCubit extends Cubit<HomeState> {
     waitCommand,
     installApkCommand,
     uninstallAppCommand,
-    rebootBootloader
+    rebootBootloader,
+    changeTimezone,
+    changeLocation,
   ];
 
   final AdbService adbService = sl();
@@ -65,34 +69,45 @@ class HomeCubit extends Cubit<HomeState> {
     final result = await db.query("devices");
     final deviceList = result.map((data) => Device.fromJson(data)).toList();
 
-    // Get the list of devices from ADB
-    final adbOutput = await adbService.listDevices();
+    var adbDeviceList = await adbService.deviceList();
+    var adbDeviceStatusMap = {
+      for (var device in adbDeviceList)
+        device.serialNumber: device.status ?? DeviceStatus.notConnected,
+    };
 
-    // Parse ADB output into a map of { ip/serial: status }
-    final deviceStatusMap = <String, String>{};
-    final lines = adbOutput.message.split('\n');
+    var adbGetGeoResult = await adbService.runCommandOnMultipleDevices(
+      deviceSerials:
+          adbDeviceList
+              .where((d) => d.status == AdbDeviceStatus.connected)
+              .map((d) => d.serialNumber)
+              .toList(),
+      command: GetTimeZoneCommand(),
+    );
 
-    for (var line in lines) {
-      if (line.contains('\t')) {
-        final parts = line.split('\t');
-        if (parts.length == 2) {
-          final deviceIp = parts[0].split(':').first;
-          deviceStatusMap[deviceIp] = parts[1];
-        }
-      }
-    }
+    var adbGeoMap = {
+      for (var result in adbGetGeoResult)
+        result.serialNumber: result.success ? result.message : "",
+    };
 
-    // Combine the stored devices with ADB status dynamically
     final updatedDevices =
         deviceList.map((device) {
-          final adbStatus = deviceStatusMap[device.ip];
-
-          if (adbStatus == 'device') {
-            return device.copyWith(status: DeviceStatus.connected);
-          } else if (adbStatus == 'unauthorized') {
-            return device.copyWith(status: DeviceStatus.unAuthorized);
+          final adbStatus = adbDeviceStatusMap[device.ip];
+          final geoResult = adbGeoMap[device.ip] ?? "";
+          if (adbStatus == AdbDeviceStatus.connected) {
+            return device.copyWith(
+              status: DeviceStatus.connected,
+              geo: geoResult,
+            );
+          } else if (adbStatus == AdbDeviceStatus.unAuthorized) {
+            return device.copyWith(
+              status: DeviceStatus.unAuthorized,
+              geo: geoResult,
+            );
           } else {
-            return device.copyWith(status: DeviceStatus.notConnected);
+            return device.copyWith(
+              status: DeviceStatus.notConnected,
+              geo: geoResult,
+            );
           }
         }).toList();
 
@@ -112,16 +127,40 @@ class HomeCubit extends Cubit<HomeState> {
       for (var device in adbDeviceList)
         device.serialNumber: device.status ?? DeviceStatus.notConnected,
     };
+
+    var adbGetGeoResult = await adbService.runCommandOnMultipleDevices(
+      deviceSerials:
+          adbDeviceList
+              .where((d) => d.status == AdbDeviceStatus.connected)
+              .map((d) => d.serialNumber)
+              .toList(),
+      command: GetTimeZoneCommand(),
+    );
+
+    var adbGeoMap = {
+      for (var result in adbGetGeoResult)
+        result.serialNumber: result.success ? result.message : "",
+    };
+
     final updatedDevices =
         devices.map((device) {
           final adbStatus = adbDeviceStatusMap[device.ip];
-
+          final geoResult = adbGeoMap[device.ip] ?? "";
           if (adbStatus == AdbDeviceStatus.connected) {
-            return device.copyWith(status: DeviceStatus.connected);
+            return device.copyWith(
+              status: DeviceStatus.connected,
+              geo: geoResult,
+            );
           } else if (adbStatus == AdbDeviceStatus.unAuthorized) {
-            return device.copyWith(status: DeviceStatus.unAuthorized);
+            return device.copyWith(
+              status: DeviceStatus.unAuthorized,
+              geo: geoResult,
+            );
           } else {
-            return device.copyWith(status: DeviceStatus.notConnected);
+            return device.copyWith(
+              status: DeviceStatus.notConnected,
+              geo: geoResult,
+            );
           }
         }).toList();
 
@@ -249,26 +288,17 @@ class HomeCubit extends Cubit<HomeState> {
           deviceSerials: deviceIps,
           command: RebootCommand(),
         );
-      } else if (command.startsWith(
-        keyCodeCommand.toLowerCase(),
-      )) {
+      } else if (command.startsWith(keyCodeCommand.toLowerCase())) {
         results = await adbService.runCommandOnMultipleDevices(
           deviceSerials: deviceIps,
           command: KeyCommand(command),
         );
-
-      }
-      else if (command.startsWith(
-        rebootBootloader.toLowerCase(),
-      )) {
+      } else if (command.startsWith(rebootBootloader.toLowerCase())) {
         results = await adbService.runCommandOnMultipleDevices(
           deviceSerials: deviceIps,
           command: RebootBootLoaderCommand(),
         );
-      }
-      else if (command.startsWith(
-        openAppCommand.toLowerCase(),
-      )) {
+      } else if (command.startsWith(openAppCommand.toLowerCase())) {
         var packageName = getValueInsideParentheses(command);
         var commandResults = await openApp(deviceIps, packageName);
         if (commandResults != null) {
@@ -321,7 +351,7 @@ class HomeCubit extends Cubit<HomeState> {
           if (x != null && y != null) {
             results = await adbService.runCommandOnMultipleDevices(
               deviceSerials: deviceIps,
-              command: TapCommand(x: x, y:y),
+              command: TapCommand(x: x, y: y),
             );
           }
         }
@@ -339,7 +369,8 @@ class HomeCubit extends Cubit<HomeState> {
           double? x2 = double.tryParse(swipeData.split(" ")[2]);
           double? y2 = double.tryParse(swipeData.split(" ")[3]);
           int? duration = int.tryParse(swipeData.split(" ")[4]);
-          if (x1 == null || y1 == null ||
+          if (x1 == null ||
+              y1 == null ||
               x2 == null ||
               y2 == null ||
               duration == null) {
@@ -352,7 +383,7 @@ class HomeCubit extends Cubit<HomeState> {
                 startY: y1,
                 endX: x2,
                 endY: y2,
-                duration: duration
+                duration: duration,
               ),
             );
           }
@@ -373,6 +404,12 @@ class HomeCubit extends Cubit<HomeState> {
       } else if (command.startsWith(uninstallAppCommand.toLowerCase())) {
         String? packageName = getValueInsideParentheses(command);
         var commandResults = await uninstallApp(deviceIps, packageName);
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(changeTimezone.toLowerCase())) {
+        String? timeZoneKey = getValueInsideParentheses(command);
+        var commandResults = await changeTimeZone(deviceSerials: deviceIps, timeZone: timeZoneKey);
         if (commandResults != null) {
           results = commandResults;
         }
@@ -479,7 +516,10 @@ class HomeCubit extends Cubit<HomeState> {
       whereArgs: deviceSerials,
     );
 
-    await adbService.runCommandOnMultipleDevices(deviceSerials: deviceSerials, command: DisconnectCommand());
+    await adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: DisconnectCommand(),
+    );
     await getDevices();
   }
 
@@ -551,7 +591,7 @@ class HomeCubit extends Cubit<HomeState> {
     apkPath = apkPath.replaceAll("/", "\\");
     return adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
-      command: InstallApkCommand(apkPath)
+      command: InstallApkCommand(apkPath),
     );
   }
 
@@ -568,8 +608,8 @@ class HomeCubit extends Cubit<HomeState> {
       return null;
     }
     return adbService.runCommandOnMultipleDevices(
-        deviceSerials: deviceSerials,
-        command: UninstallAppCommand(packageName)
+      deviceSerials: deviceSerials,
+      command: UninstallAppCommand(packageName),
     );
   }
 
@@ -588,6 +628,25 @@ class HomeCubit extends Cubit<HomeState> {
     return await adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
       command: OpenPackageCommand(packageName),
+    );
+  }
+
+  Future<List<AdbResult>?> changeTimeZone({
+    required List<String> deviceSerials,
+    String? timeZone,
+  }) async {
+    if(timeZone == null || timeZone.isEmpty){
+      logCubit.log(
+        title: "Error: ",
+        message: "Invalid TimeZone",
+        type: LogType.ERROR,
+      );
+
+      return null;
+    }
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: ChangeTimeZoneCommand(timeZone: timeZone),
     );
   }
 }

@@ -25,6 +25,7 @@ mixin _$Device {
   String? get status => throw _privateConstructorUsedError;
   bool get isSelected => throw _privateConstructorUsedError;
   String? get commandStatus => throw _privateConstructorUsedError;
+  String? get geo => throw _privateConstructorUsedError;
 
   /// Serializes this Device to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -45,6 +46,7 @@ abstract class $DeviceCopyWith<$Res> {
     String? status,
     bool isSelected,
     String? commandStatus,
+    String? geo,
   });
 }
 
@@ -67,6 +69,7 @@ class _$DeviceCopyWithImpl<$Res, $Val extends Device>
     Object? status = freezed,
     Object? isSelected = null,
     Object? commandStatus = freezed,
+    Object? geo = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -90,6 +93,11 @@ class _$DeviceCopyWithImpl<$Res, $Val extends Device>
                     ? _value.commandStatus
                     : commandStatus // ignore: cast_nullable_to_non_nullable
                         as String?,
+            geo:
+                freezed == geo
+                    ? _value.geo
+                    : geo // ignore: cast_nullable_to_non_nullable
+                        as String?,
           )
           as $Val,
     );
@@ -109,6 +117,7 @@ abstract class _$$DeviceImplCopyWith<$Res> implements $DeviceCopyWith<$Res> {
     String? status,
     bool isSelected,
     String? commandStatus,
+    String? geo,
   });
 }
 
@@ -130,6 +139,7 @@ class __$$DeviceImplCopyWithImpl<$Res>
     Object? status = freezed,
     Object? isSelected = null,
     Object? commandStatus = freezed,
+    Object? geo = freezed,
   }) {
     return _then(
       _$DeviceImpl(
@@ -153,6 +163,11 @@ class __$$DeviceImplCopyWithImpl<$Res>
                 ? _value.commandStatus
                 : commandStatus // ignore: cast_nullable_to_non_nullable
                     as String?,
+        geo:
+            freezed == geo
+                ? _value.geo
+                : geo // ignore: cast_nullable_to_non_nullable
+                    as String?,
       ),
     );
   }
@@ -166,6 +181,7 @@ class _$DeviceImpl implements _Device {
     this.status = "not_connected",
     this.isSelected = false,
     this.commandStatus,
+    this.geo,
   });
 
   factory _$DeviceImpl.fromJson(Map<String, dynamic> json) =>
@@ -181,10 +197,12 @@ class _$DeviceImpl implements _Device {
   final bool isSelected;
   @override
   final String? commandStatus;
+  @override
+  final String? geo;
 
   @override
   String toString() {
-    return 'Device(ip: $ip, status: $status, isSelected: $isSelected, commandStatus: $commandStatus)';
+    return 'Device(ip: $ip, status: $status, isSelected: $isSelected, commandStatus: $commandStatus, geo: $geo)';
   }
 
   @override
@@ -197,13 +215,14 @@ class _$DeviceImpl implements _Device {
             (identical(other.isSelected, isSelected) ||
                 other.isSelected == isSelected) &&
             (identical(other.commandStatus, commandStatus) ||
-                other.commandStatus == commandStatus));
+                other.commandStatus == commandStatus) &&
+            (identical(other.geo, geo) || other.geo == geo));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode =>
-      Object.hash(runtimeType, ip, status, isSelected, commandStatus);
+      Object.hash(runtimeType, ip, status, isSelected, commandStatus, geo);
 
   /// Create a copy of Device
   /// with the given fields replaced by the non-null parameter values.
@@ -225,6 +244,7 @@ abstract class _Device implements Device {
     final String? status,
     final bool isSelected,
     final String? commandStatus,
+    final String? geo,
   }) = _$DeviceImpl;
 
   factory _Device.fromJson(Map<String, dynamic> json) = _$DeviceImpl.fromJson;
@@ -237,6 +257,8 @@ abstract class _Device implements Device {
   bool get isSelected;
   @override
   String? get commandStatus;
+  @override
+  String? get geo;
 
   /// Create a copy of Device
   /// with the given fields replaced by the non-null parameter values.

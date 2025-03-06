@@ -11,6 +11,7 @@ _$DeviceImpl _$$DeviceImplFromJson(Map<String, dynamic> json) => _$DeviceImpl(
   status: json['status'] as String? ?? "not_connected",
   isSelected: json['isSelected'] as bool? ?? false,
   commandStatus: json['commandStatus'] as String?,
+  geo: json['geo'] as String?,
 );
 
 Map<String, dynamic> _$$DeviceImplToJson(_$DeviceImpl instance) =>
@@ -19,4 +20,5 @@ Map<String, dynamic> _$$DeviceImplToJson(_$DeviceImpl instance) =>
       'status': instance.status,
       'isSelected': instance.isSelected,
       'commandStatus': instance.commandStatus,
+      'geo': instance.geo,
     };
