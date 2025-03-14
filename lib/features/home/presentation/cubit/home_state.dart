@@ -8,5 +8,6 @@ class HomeState with _$HomeState {
     @Default(false) bool isAddingDevice,
     @Default(false) bool isRefreshing,
     @Default(false) bool isConnectingAll,
+
   }) = _HomeState;
 }

@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'dart:math';
+
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/features/home/domain/entity/adb_command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
+import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import '../../../../injection_container.dart';
@@ -35,9 +39,9 @@ class AdbService {
     String? serialNumber,
     int port = 5555,
   }) async {
-    String fullCommand = _buildCommand(command, serialNumber, port);
-    logCubit.log(title: "ADB Command", message: fullCommand);
+    String fullCommand = await _buildCommand(command, serialNumber, port);
 
+    logCubit.log(title: "ADB Command", message: fullCommand);
     try {
       var result = await _shell.run(fullCommand);
       String output = result.outText.trim();
@@ -60,13 +64,14 @@ class AdbService {
     }
   }
 
-  String _buildCommand(AdbCommand command, String? serialNumber, int port) {
+  Future<String> _buildCommand(
+    AdbCommand command,
+    String? serialNumber,
+    int port,
+  ) async {
     return switch (command) {
       ListDevicesCommand() => _withSerial('devices', serialNumber),
-      ConnectCommand(address: var address) => _withSerial(
-        'connect $address',
-        serialNumber,
-      ),
+      ConnectCommand(address: var address) => 'adb connect $address',
       DisconnectCommand() => _withSerial('disconnect $serialNumber', null),
       TcpIpCommand(port: var p) => _withSerial('tcpip $p', serialNumber),
       ShellCommand(command: var cmd) => _withSerial('shell $cmd', serialNumber),
@@ -92,13 +97,12 @@ class AdbService {
       ) =>
         _withSerial('shell input swipe $sx $sy $ex $ey $dur', serialNumber),
       InstallApkCommand(apkPath: var path) => _withSerial(
-        'install "$path"',
+        "install \"$path\"",
         serialNumber,
       ),
-      UninstallAppCommand(packageName: var pkg) => _withSerial(
-        'uninstall $pkg',
-        serialNumber,
-      ),
+      UninstallAppsCommand(packages: var packages) => packages
+          .map((package) => _withSerial("uninstall $package", serialNumber))
+          .join(" && "),
       RebootCommand() => _withSerial("shell reboot", serialNumber),
       RebootBootLoaderCommand() => _withSerial(
         "reboot bootloader",
@@ -112,11 +116,39 @@ class AdbService {
         "shell getprop persist.sys.timezone",
         serialNumber,
       ),
-    // setprop persist.sys.timezone "America/Chicago"
+      SetProxyCommand(port: var port, ip: var ip) => _withSerial(
+        "shell settings put global http_proxy $ip:$port",
+        serialNumber,
+      ),
+      // setprop persist.sys.timezone "America/Chicago"
       ChangeTimeZoneCommand(timeZone: var timeZone) => _withSerial(
         "shell service call alarm 3 s16 $timeZone",
         serialNumber,
       ),
+      RemoveProxyCommand() => _withSerial(
+        "shell settings put global http_proxy :0",
+        serialNumber,
+      ),
+      VerifyProxyCommand() => _withSerial(
+        "shell settings get global http_proxy",
+        serialNumber,
+      ),
+      SetAlwaysOnCommand(value: var value) => _withSerial(
+        "shell settings put secure doze_always_on $value",
+        serialNumber,
+      ),
+      GetPackagesCommand() => _withSerial(
+        "shell cmd package list packages",
+        serialNumber,
+      ),
+      RecoveryCommand() => _withSerial("reboot recovery", serialNumber),
+      ChangeDeviceInfoCommand(
+        useRandom: var useRandom,
+        deviceInfo: var deviceInfo,
+      ) =>
+        useRandom
+            ? await _buildRandomDeviceInfoCommand(serialNumber)
+            : await _buildUserInputDeviceInfoCommand(deviceInfo!, serialNumber),
       _ => throw UnsupportedError('Unknown command'),
     };
   }
@@ -251,5 +283,160 @@ class AdbService {
       message: "Found ${devices.length} devices",
     );
     return devices;
+  }
+
+  Future<String> _buildRandomDeviceInfoCommand(String? serialNumber) async {
+    final randomDevice =
+        deviceInfoList[Random().nextInt(deviceInfoList.length)];
+    final model = randomDevice.model;
+    final brand = randomDevice.brand;
+    final manufacturer = randomDevice.manufacturer;
+    final device = randomDevice.device;
+    final productName = randomDevice.productName;
+    final releaseVersion = randomDevice.releaseVersion;
+    final sdkVersion = randomDevice.sdkVersion;
+
+    final random = Random();
+    final serial =
+        'XYZ${random.nextInt(10000)}${random.nextInt(10000)}${random.nextInt(10000)}';
+    final randStr1 = _generateRandomHex(4);
+    final randStr2 = _generateRandomHex(4);
+    final randStr3 = _generateRandomHex(4);
+    final fingerprint =
+        '$brand/$productName/$device:$releaseVersion/$randStr1.$randStr2/$randStr3:user/release-keys';
+    final randomId = _generateRandomHex(8);
+    final macSuffix = _generateRandomHex(1);
+
+    // Build shell script content
+    final scriptContent = '''
+#!/system/bin/sh
+# Check and create directories
+[ -d /data/adb/modules ] || mkdir -p /data/adb/modules
+mkdir -p /data/adb/modules/update_device_info
+
+# Write system.prop
+echo 'ro.product.model=$model' > /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.brand=$brand' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.manufacturer=$manufacturer' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.serialno=$serial' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.device=$device' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.name=$productName' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.fingerprint=$fingerprint' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.version.release=$releaseVersion' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.version.sdk=$sdkVersion' >> /data/adb/modules/update_device_info/system.prop
+chmod 644 /data/adb/modules/update_device_info/system.prop
+
+# Update Android ID and clear ad ID
+settings put secure android_id '$randomId'
+rm -rf /data/user_de/0/com.google.android.gms/files/adid_key
+pm clear com.google.android.gms
+
+# Try to spoof MAC address
+WLAN=\$(ip link | grep -o "wlan[0-1]" | head -n 1)
+if [ -n "\$WLAN" ]; then
+  ifconfig \$WLAN down 2>/dev/null || echo "wlan down failed"
+  ip link set \$WLAN address 00:11:22:33:44:$macSuffix 2>/dev/null || echo "MAC spoofing failed"
+  ifconfig \$WLAN up 2>/dev/null || echo "wlan up failed"
+else
+  echo "No wlan interface found"
+fi
+
+echo "Script completed"
+''';
+
+    final scriptPath = await _buildAndPushScript(scriptContent, serialNumber);
+    return _withSerial(
+      'shell "su -c sh $scriptPath && rm $scriptPath"',
+      serialNumber,
+    );
+  }
+
+  Future<String> _buildUserInputDeviceInfoCommand(
+    DeviceInfo deviceInfo,
+    String? serialNumber,
+  ) async {
+    final model = deviceInfo.model;
+    final brand = deviceInfo.brand;
+    final manufacturer = deviceInfo.manufacturer;
+    final device = deviceInfo.device;
+    final productName = deviceInfo.productName;
+    final fingerprint = deviceInfo.fingerprint;
+    final releaseVersion = deviceInfo.releaseVersion;
+    final sdkVersion = deviceInfo.sdkVersion;
+
+    final randomId = _generateRandomHex(8);
+    final macSuffix = _generateRandomHex(1);
+
+    // Build shell script content
+    final scriptContent = '''
+#!/system/bin/sh
+# Check and create directories
+[ -d /data/adb/modules ] || mkdir -p /data/adb/modules
+mkdir -p /data/adb/modules/update_device_info
+
+# Write system.prop
+echo 'ro.product.model=$model' > /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.brand=$brand' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.manufacturer=$manufacturer' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.device=$device' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.product.name=$productName' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.fingerprint=$fingerprint' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.version.release=$releaseVersion' >> /data/adb/modules/update_device_info/system.prop
+echo 'ro.build.version.sdk=$sdkVersion' >> /data/adb/modules/update_device_info/system.prop
+chmod 644 /data/adb/modules/update_device_info/system.prop
+
+# Update Android ID and clear ad ID
+settings put secure android_id '$randomId'
+rm -rf /data/user_de/0/com.google.android.gms/files/adid_key
+pm clear com.google.android.gms
+
+# Try to spoof MAC address
+WLAN=\$(ip link | grep -o "wlan[0-1]" | head -n 1)
+if [ -n "\$WLAN" ]; then
+  ifconfig \$WLAN down 2>/dev/null || echo "wlan down failed"
+  ip link set \$WLAN address 00:11:22:33:44:$macSuffix 2>/dev/null || echo "MAC spoofing failed"
+  ifconfig \$WLAN up 2>/dev/null || echo "wlan up failed"
+else
+  echo "No wlan interface found"
+fi
+
+echo "Script completed"
+''';
+
+    final scriptPath = await _buildAndPushScript(scriptContent, serialNumber);
+    return _withSerial(
+      'shell "su -c sh $scriptPath && rm $scriptPath"',
+      serialNumber,
+    );
+  }
+
+  String _generateRandomHex(int byteLength) {
+    final random = Random();
+    final bytes = List<int>.generate(byteLength, (_) => random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
+  }
+
+  Future<String> _buildAndPushScript(
+    String scriptContent,
+    String? serialNumber,
+  ) async {
+    // Write script to a temporary file on the host
+    final scriptFile = File('temp_script.sh');
+    await scriptFile.writeAsString(scriptContent);
+
+    // Push script to device
+    final pushCmd = _withSerial(
+      'push ${scriptFile.path} /data/local/tmp/change_device_info.sh',
+      serialNumber,
+    );
+    final pushResult = await Process.run('adb', pushCmd.split(' '));
+    if (pushResult.exitCode != 0) {
+      throw Exception('Failed to push script: ${pushResult.stderr}');
+    }
+
+    // Clean up local file
+    await scriptFile.delete();
+
+    return '/data/local/tmp/change_device_info.sh';
   }
 }

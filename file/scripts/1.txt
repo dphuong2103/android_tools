@@ -1,6 +1,21 @@
-wait(2)
+wait()
 InstallApk(facebook)
 OpenApp(com.facebook.lite)
 wait(5)
 KEYCODE_BACK
-UninstallApp(com.facebook.lite)
+UninstallApps(com.facebook.lite,com.facebook.lite)
+
+wait(duration(giay))
+VerifyProxy
+Reboot
+RunScript(TenScript(ko can duoi txt))
+Tap(x y)
+Swipe(x1 y1 x2 y2 duration(ms))
+ListPackages
+RemoveProxy
+SetProxy(ip:port)
+Bootloader
+CloseApp(packageName)
+SetAlwaysOn(0)
+Recovery
+ChangeDeviceInfoRandom

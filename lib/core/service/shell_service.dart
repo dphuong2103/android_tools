@@ -20,7 +20,7 @@ class ShellService {
       scrcpyPath = p.join(
         Directory.current.path,
         'dependency',
-        'scrcpy',
+        Platform.isWindows ? 'scrcpy' : Platform.isMacOS ? 'scrcpy-macos': 'scrcpy' ,
         Platform.isWindows ? 'scrcpy.exe' : 'scrcpy',
       );
     }

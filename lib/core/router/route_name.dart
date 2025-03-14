@@ -12,4 +12,7 @@ sealed class RouteName {
   static const String REGISTRATION_OTP = '/registrationOtp';
   static const String LOGIN = '/login';
   static const String HOME = '/home';
+
+  static const String HOME_LOGS ="/logs";
+  static const String HOME_CHANGE_INFO ="/change_info";
 }

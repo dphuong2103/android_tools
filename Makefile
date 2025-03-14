@@ -7,7 +7,7 @@ build: build-windows copy-dependencies
 
 # Run flutter build
 build-windows:
-	flutter build windows --dart-define FLAVOR=prod
+	fvm flutter build windows --dart-define FLAVOR=prod
 
 # Copy all dependencies to build directory if not already present (Windows-compatible)
 copy-dependencies:
@@ -17,12 +17,12 @@ copy-dependencies:
 
 # Clean build artifacts
 clean:
-	flutter clean
+	fvm flutter clean
 	if exist "$(FLUTTER_BUILD_DIR)" rmdir /S /Q "$(FLUTTER_BUILD_DIR)"
 
 code:
 	@echo "Running make code process..."
-	dart run build_runner build
+	fvm dart run build_runner build
 	@echo "Make code process complete."
 
 .PHONY: all build copy-dependencies clean code

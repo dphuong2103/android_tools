@@ -5,10 +5,13 @@ import 'package:path_provider/path_provider.dart'; // Use this to get a valid di
 
 class TableName {
   static final String devices = "devices";
+  static final String batches = "batches";
+  static final String deviceBatches = "device_batch";
 }
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
+
   factory DatabaseService() => _instance;
 
   DatabaseService._internal();
@@ -30,14 +33,28 @@ class DatabaseService {
       options: OpenDatabaseOptions(
         version: 1,
         onCreate: (db, version) async {
-          // Drop and create should be executed separately
-          await db.execute('DROP TABLE IF EXISTS ${TableName.devices}');
           await db.execute('''
             CREATE TABLE IF NOT EXISTS ${TableName.devices}(
               ip TEXT PRIMARY KEY
             )
           ''');
-        },
+
+          await db.execute('''
+          CREATE TABLE IF NOT EXISTS ${TableName.batches}(
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL
+          )
+          ''');
+
+          await db.execute('''
+          CREATE TABLE IF NOT EXISTS ${TableName.deviceBatches}(
+            batch_id TEXT NOT NULL,
+            device_serial_number TEXT NOT NULL,
+            PRIMARY KEY (batch_id, device_serial_number),
+            FOREIGN KEY (batch_id) REFERENCES ${TableName.batches}(id) ON DELETE CASCADE
+          )
+          ''');
+          },
       ),
     );
 

@@ -19,15 +19,15 @@ class LogItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "[${formatDateTime(dateTime: log.dateTime)} ${log.title}",
+          SelectableText(
+            "[${formatDateTime(dateTime: log.dateTime)}] ${log.title}",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: _getLogColor(log.logType),
             ),
           ),
           const SizedBox(height: 4),
-          log.content == null ? Container() : Text(
+          log.content == null ? Container() : SelectableText(
             log.content!,
             // Removed the `color` property so it uses the default theme color
           ),

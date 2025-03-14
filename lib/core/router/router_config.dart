@@ -1,5 +1,8 @@
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/features/home/presentation/screen/home_screen.dart';
+import 'package:android_tools/features/home/presentation/widget/change_info.dart';
+import 'package:android_tools/features/home/presentation/widget/logs.dart';
+import 'package:android_tools/features/login/presentation/screen/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,20 +10,48 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
 );
 
-final router = GoRouter(
+final GlobalKey<NavigatorState> _homeShelfNavigatorKey =
+    GlobalKey<NavigatorState>();
+
+final GoRouter router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: RouteName.HOME,
-  debugLogDiagnostics: true,
-  routes: <RouteBase>[
-    _buildRouteWithDefaultTransition(
-      path: "/",
-      pageBuilder: (context, state) => const HomeScreen(),
+  initialLocation: '/home/logs', // Default route
+  routes: [
+    /// LOGIN ROUTE
+    GoRoute(
+      path: RouteName.LOGIN,
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: LoginScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
     ),
-    _buildRouteWithDefaultTransition(
-      path: RouteName.HOME,
-      pageBuilder: (context, state) => const HomeScreen(),
+
+    /// SHELL ROUTE - Home Screen
+    ShellRoute(
+      navigatorKey: _homeShelfNavigatorKey,
+      builder: (context, state, child) {
+        return HomeScreen(child: child);
+      },
+      routes: [
+        /// Nested routes inside `HomeScreen`
+        GoRoute(
+          path: '${RouteName.HOME}${RouteName.HOME_LOGS}',
+          pageBuilder: (context, state) => NoTransitionPage(
+            child: Logs(),
+          ),
+        ),
+        GoRoute(
+          path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
+          pageBuilder: (context, state) => NoTransitionPage(
+            child: ChangeDeviceInfo(),
+          ),
+        ),
+      ],
     ),
-  ]
+  ],
 );
 
 GoRoute _buildRouteWithDefaultTransition({
@@ -38,8 +69,7 @@ GoRoute _buildRouteWithDefaultTransition({
     parentNavigatorKey: parentNavigatorKey,
     redirect: redirect,
     pageBuilder:
-        (context, state) =>
-        CustomTransitionPage<void>(
+        (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           transitionDuration: const Duration(milliseconds: 300),
           child: pageBuilder(context, state),

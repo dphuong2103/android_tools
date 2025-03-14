@@ -7,6 +7,7 @@ import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/features/home/domain/entity/adb_command.dart';
 import 'package:android_tools/features/home/domain/entity/device.dart';
+import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -14,12 +15,11 @@ import 'package:collection/collection.dart';
 import '../../../../injection_container.dart';
 import '../../domain/entity/adb_device.dart';
 
-//931 1271
-//320 1679
 part 'home_cubit.freezed.dart';
 
 part 'home_state.dart';
 
+const command = "command";
 const rebootCommand = "Reboot";
 const keyCodeCommand = "KEYCODE";
 const openAppCommand = "OpenApp";
@@ -29,15 +29,23 @@ const tapCommand = "Tap";
 const waitCommand = "Wait";
 const swipeCommand = "Swipe";
 const installApkCommand = "InstallApk";
-const uninstallAppCommand = "UninstallApp";
-const rebootBootloader = "Bootloader";
-const changeTimezone = "ChangeTimeZone";
-const changeLocation = "ChangeLocation";
+const uninstallAppsCommand = "UninstallApps";
+const fastbootCommand = "Fastboot";
+const changeTimezoneCommand = "ChangeTimeZone";
+const changeLocationCommand = "ChangeLocation";
+const setProxyCommand = "SetProxy";
+const verifyProxyCommand = "VerifyProxy";
+const removeProxyCommand = "RemoveProxy";
+const listPackagesCommand = "ListPackages";
+const setAlwaysOnCommand = "SetAlwaysOn";
+const recoveryCommand = "Recovery";
+const changeDeviceInfoRandomCommand = "ChangeDeviceInfoRandom";
 
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(const HomeState());
 
   final List<String> commandList = [
+    command,
     rebootCommand,
     keyCodeCommand,
     openAppCommand,
@@ -46,10 +54,17 @@ class HomeCubit extends Cubit<HomeState> {
     tapCommand,
     waitCommand,
     installApkCommand,
-    uninstallAppCommand,
-    rebootBootloader,
-    changeTimezone,
-    changeLocation,
+    uninstallAppsCommand,
+    fastbootCommand,
+    changeTimezoneCommand,
+    changeLocationCommand,
+    setProxyCommand,
+    verifyProxyCommand,
+    removeProxyCommand,
+    listPackagesCommand,
+    setAlwaysOnCommand,
+    recoveryCommand,
+    changeDeviceInfoRandomCommand
   ];
 
   final AdbService adbService = sl();
@@ -66,7 +81,7 @@ class HomeCubit extends Cubit<HomeState> {
   Future<void> getDevices() async {
     // Fetch device IPs from the database (main list)
     final Database db = await dbService.database;
-    final result = await db.query("devices");
+    final result = await db.query(TableName.devices);
     final deviceList = result.map((data) => Device.fromJson(data)).toList();
 
     var adbDeviceList = await adbService.deviceList();
@@ -233,6 +248,25 @@ class HomeCubit extends Cubit<HomeState> {
     }).toList();
   }
 
+  Future<void> runCommandWithRepeatTime({
+    required String command,
+    required int? repeatTime,
+  }) async {
+    if (repeatTime == null) {
+      runCommand(command);
+      return;
+    }
+    if (repeatTime == -1) {
+      while (true) {
+        runCommand(command);
+      }
+    } else {
+      for (int i = 1; i <= repeatTime; i++) {
+        runCommand(command);
+      }
+    }
+  }
+
   Future<void> runCommand(String command) async {
     if (command.isEmpty) {
       return;
@@ -293,7 +327,7 @@ class HomeCubit extends Cubit<HomeState> {
           deviceSerials: deviceIps,
           command: KeyCommand(command),
         );
-      } else if (command.startsWith(rebootBootloader.toLowerCase())) {
+      } else if (command.startsWith(fastbootCommand.toLowerCase())) {
         results = await adbService.runCommandOnMultipleDevices(
           deviceSerials: deviceIps,
           command: RebootBootLoaderCommand(),
@@ -401,15 +435,73 @@ class HomeCubit extends Cubit<HomeState> {
         if (commandResults != null) {
           results = commandResults;
         }
-      } else if (command.startsWith(uninstallAppCommand.toLowerCase())) {
-        String? packageName = getValueInsideParentheses(command);
-        var commandResults = await uninstallApp(deviceIps, packageName);
+      } else if (command.startsWith(uninstallAppsCommand.toLowerCase())) {
+        List<String>? packages = getValueInsideParentheses(command)?.split(",");
+        if (packages != null && packages.isNotEmpty) {
+          for (var packageName in packages) {
+            packageName = packageName.trim();
+          }
+        }
+        var commandResults = await uninstallApps(deviceIps, packages);
         if (commandResults != null) {
           results = commandResults;
         }
-      } else if (command.startsWith(changeTimezone.toLowerCase())) {
+      } else if (command.startsWith(changeTimezoneCommand.toLowerCase())) {
         String? timeZoneKey = getValueInsideParentheses(command);
-        var commandResults = await changeTimeZone(deviceSerials: deviceIps, timeZone: timeZoneKey);
+        var commandResults = await changeTimeZone(
+          deviceSerials: deviceIps,
+          timeZone: timeZoneKey,
+        );
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(setProxyCommand.toLowerCase())) {
+        String? portAndProxy = getValueInsideParentheses(command);
+        var port = portAndProxy?.split(":")[1];
+        var ip = portAndProxy?.split(":")[0];
+        var commandResults = await setProxy(
+          deviceSerials: deviceIps,
+          port: port,
+          ip: ip,
+        );
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(verifyProxyCommand.toLowerCase())) {
+        var commandResults = await verifyProxy(deviceSerials: deviceIps);
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(removeProxyCommand.toLowerCase())) {
+        var commandResults = await removeProxy(deviceSerials: deviceIps);
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(listPackagesCommand.toLowerCase())) {
+        var commandResults = await listPackages(deviceSerials: deviceIps);
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(setAlwaysOnCommand.toLowerCase())) {
+        int? alwaysOn =
+            getValueInsideParentheses(command) != null
+                ? int.tryParse(getValueInsideParentheses(command)!)
+                : null;
+        var commandResults = await setAlwaysOn(
+          value: alwaysOn,
+          deviceSerials: deviceIps,
+        );
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      } else if (command.startsWith(recoveryCommand.toLowerCase())) {
+        var commandResults = await rebootRecovery(deviceSerials: deviceIps);
+        if (commandResults != null) {
+          results = commandResults;
+        }
+      }
+      else if (command.startsWith(changeDeviceInfoRandomCommand.toLowerCase())) {
+        var commandResults = await changeDeviceInfoRandom(deviceSerials: deviceIps);
         if (commandResults != null) {
           results = commandResults;
         }
@@ -595,11 +687,11 @@ class HomeCubit extends Cubit<HomeState> {
     );
   }
 
-  Future<List<AdbResult>?> uninstallApp(
+  Future<List<AdbResult>?> uninstallApps(
     List<String> deviceSerials,
-    String? packageName,
+    List<String>? packages,
   ) async {
-    if (packageName == null || packageName.isEmpty) {
+    if (packages == null || packages.isEmpty) {
       logCubit.log(
         title: "Error: ",
         message: "Invalid package name",
@@ -609,7 +701,7 @@ class HomeCubit extends Cubit<HomeState> {
     }
     return adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
-      command: UninstallAppCommand(packageName),
+      command: UninstallAppsCommand(packages),
     );
   }
 
@@ -635,7 +727,7 @@ class HomeCubit extends Cubit<HomeState> {
     required List<String> deviceSerials,
     String? timeZone,
   }) async {
-    if(timeZone == null || timeZone.isEmpty){
+    if (timeZone == null || timeZone.isEmpty) {
       logCubit.log(
         title: "Error: ",
         message: "Invalid TimeZone",
@@ -647,6 +739,99 @@ class HomeCubit extends Cubit<HomeState> {
     return adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
       command: ChangeTimeZoneCommand(timeZone: timeZone),
+    );
+  }
+
+  Future<List<AdbResult>?> setProxy({
+    required List<String> deviceSerials,
+    String? port,
+    String? ip,
+  }) async {
+    if (port == null || port.isEmpty || ip == null || ip.isEmpty) {
+      logCubit.log(
+        title: "Error: ",
+        message: "Invalid Port or Ip",
+        type: LogType.ERROR,
+      );
+
+      return null;
+    }
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: SetProxyCommand(ip: ip, port: port),
+    );
+  }
+
+  Future<List<AdbResult>?> removeProxy({
+    required List<String> deviceSerials,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: RemoveProxyCommand(),
+    );
+  }
+
+  Future<List<AdbResult>?> verifyProxy({
+    required List<String> deviceSerials,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: VerifyProxyCommand(),
+    );
+  }
+
+  Future<List<AdbResult>?> listPackages({
+    required List<String> deviceSerials,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: GetPackagesCommand(),
+    );
+  }
+
+  Future<List<AdbResult>?> setAlwaysOn({
+    required int? value,
+    required List<String> deviceSerials,
+  }) async {
+    if (value == null) {
+      logCubit.log(
+        title: "Error: ",
+        message: "Invalid Port or Ip",
+        type: LogType.ERROR,
+      );
+      return null;
+    }
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: SetAlwaysOnCommand(value: value),
+    );
+  }
+
+  Future<List<AdbResult>?> rebootRecovery({
+    required List<String> deviceSerials,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: RecoveryCommand(),
+    );
+  }
+
+  Future<List<AdbResult>?> changeDeviceInfoRandom({
+    required List<String> deviceSerials,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: ChangeDeviceInfoCommand.random(),
+    );
+  }
+
+  Future<List<AdbResult>?> changeDeviceInfoUserInput({
+    required List<String> deviceSerials,
+    required DeviceInfo deviceInfo,
+  }) async {
+    return adbService.runCommandOnMultipleDevices(
+      deviceSerials: deviceSerials,
+      command: ChangeDeviceInfoCommand.userInput(deviceInfo: deviceInfo),
     );
   }
 }
