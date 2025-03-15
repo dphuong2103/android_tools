@@ -11,6 +11,7 @@ import 'package:collection/collection.dart';
 import 'package:confirm_dialog/confirm_dialog.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resizable_columns/resizable_columns.dart';
 
 import '../../../../injection_container.dart';
 
@@ -367,10 +368,15 @@ class _HomeViewState extends State<HomeView>
               ),
 
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: ResizableColumns(
+                  orientation: ResizableOrientation.horizontal,
+                  dividerColor: Colors.black26,
+                  dividerThickness: 4.0,
+                  initialProportions: const [1, 1],
+                  minChildSize: 200.0,
                   children: [
-                    Flexible(
+                    (context) => Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: Column(
                         children: [
                           Expanded(
@@ -539,10 +545,9 @@ class _HomeViewState extends State<HomeView>
                         ],
                       ),
                     ),
-                    VerticalDivider(color: Colors.black12, thickness: 2),
-                    // Gap(10),
-                    Flexible(
-                      flex: 2,
+                    // VerticalDivider(color: Colors.black12, thickness: 2),
+                    (context) => Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -568,7 +573,7 @@ class _HomeViewState extends State<HomeView>
                                 context.push(path);
                               },
                               tabs: <Widget>[
-                                Tab(text: "Home"),
+                                Tab(text: "Logs"),
                                 Tab(text: "Change info"),
                               ],
                             ),

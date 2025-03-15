@@ -5,6 +5,7 @@ import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/features/home/domain/entity/adb_command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
+import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import '../../../../injection_container.dart';
@@ -39,9 +40,15 @@ class AdbService {
     String? serialNumber,
     int port = 5555,
   }) async {
-    String fullCommand = await _buildCommand(command, serialNumber, port);
+    if (command is ChangeRandomDeviceInfoCommand) {
+      if (serialNumber == null) throw Exception("Serial Number empty");
+      return await _changeRandomDeviceInfo(serialNumber: serialNumber);
+    }
+
+    String fullCommand = _buildCommand(command, serialNumber, port);
 
     logCubit.log(title: "ADB Command", message: fullCommand);
+
     try {
       var result = await _shell.run(fullCommand);
       String output = result.outText.trim();
@@ -64,11 +71,7 @@ class AdbService {
     }
   }
 
-  Future<String> _buildCommand(
-    AdbCommand command,
-    String? serialNumber,
-    int port,
-  ) async {
+  String _buildCommand(AdbCommand command, String? serialNumber, int port) {
     return switch (command) {
       ListDevicesCommand() => _withSerial('devices', serialNumber),
       ConnectCommand(address: var address) => 'adb connect $address',
@@ -142,13 +145,6 @@ class AdbService {
         serialNumber,
       ),
       RecoveryCommand() => _withSerial("reboot recovery", serialNumber),
-      ChangeDeviceInfoCommand(
-        useRandom: var useRandom,
-        deviceInfo: var deviceInfo,
-      ) =>
-        useRandom
-            ? await _buildRandomDeviceInfoCommand(serialNumber)
-            : await _buildUserInputDeviceInfoCommand(deviceInfo!, serialNumber),
       _ => throw UnsupportedError('Unknown command'),
     };
   }
@@ -285,7 +281,114 @@ class AdbService {
     return devices;
   }
 
-  Future<String> _buildRandomDeviceInfoCommand(String? serialNumber) async {
+  Future<String?> _buildAndPushChangeInfoScript(String serialNumber) async {
+    var randomDevice = _generateRandomDeviceInfo();
+    logCubit.log(title: "Device Info",message: randomDevice.toString());
+    var newMac = "00:11:22:33:44:${randomDevice.macSuffix}";
+    var content = """#!/system/bin/sh
+
+echo "[INFO] Starting spoof script..."
+
+# Ensure root permissions for all commands
+echo "[INFO] Creating Magisk module directory..."
+su -c "mkdir -p /data/adb/modules/update_device_info" || echo "[ERROR] Failed to create module directory."
+
+# Write system properties to the Magisk module
+echo "[INFO] Writing system properties..."
+su -c "echo 'ro.product.model=${randomDevice.model}' > /data/adb/modules/update_device_info/system.prop" || echo "[ERROR] Failed to write model."
+su -c "echo 'ro.product.brand=${randomDevice.brand}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.product.manufacturer=${randomDevice.manufacturer}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.serialno=${randomDevice.serialNo}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.product.device=${randomDevice.device}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.product.name=${randomDevice.productName}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.build.fingerprint=${randomDevice.fingerprint}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.build.version.release=${randomDevice.fingerprint}' >> /data/adb/modules/update_device_info/system.prop"
+su -c "echo 'ro.build.version.sdk=${randomDevice.sdkVersion}' >> /data/adb/modules/update_device_info/system.prop"
+
+# Set correct permissions
+echo "[INFO] Setting permissions..."
+su -c "chmod 644 /data/adb/modules/update_device_info/system.prop" || echo "[ERROR] Failed to set permissions."
+
+# Spoof Android ID
+echo "[INFO] Changing Android ID to ${randomDevice.androidId}..."
+su -c "settings put secure android_id "${randomDevice.androidId}"" || echo "[ERROR] Failed to change Android ID."
+
+# Reset Advertising ID
+echo "[INFO] Resetting Advertising ID..."
+su -c "rm -rf /data/user_de/0/com.google.android.gms/files/adid_key" || echo "[ERROR] Failed to reset Advertising ID."
+su -c "pm clear com.google.android.gms" || echo "[ERROR] Failed to clear Google Play Services."
+
+# Spoof Wi-Fi MAC Address using native commands
+echo "[INFO] Spoofing MAC address..."
+su -c "ip link set wlan0 down" || echo "[ERROR] Failed to bring down wlan0."
+su -c "ip link set wlan0 address $newMac" && echo "[INFO] MAC address changed to $newMac" || echo "[ERROR] MAC spoofing failed, skipping..."
+su -c "ip link set wlan0 up" || echo "[ERROR] Failed to bring up wlan0."
+
+exit
+echo "[INFO] Spoofing script finished!"
+
+    """;
+    var scriptName =
+        "${DateFormat("yyyyMMddHHmmss").format(DateTime.now())}_script_change_info_${serialNumber}.sh";
+    final scriptFile = File(scriptName);
+    await scriptFile.writeAsString(content);
+
+    // Push script to device
+    final pushCmd = _withSerial(
+      'push ${scriptFile.path} /data/local/tmp/$scriptName',
+      serialNumber,
+    );
+    try {
+      var result = await _shell.run(pushCmd);
+      // await scriptFile.delete();
+
+      String output = result.outText.trim();
+
+      if (_isConnectionError(output)) {
+        _logError(serialNumber, "Connection error detected.", result.errText);
+        return null;
+      }
+
+      if (result.first.exitCode == 0) {
+        return '/data/local/tmp/$scriptName';
+      } else {
+        return null;
+      }
+    } catch (e) {
+      return null;
+    }
+
+  }
+
+  Future<AdbResult> _changeRandomDeviceInfo({
+    required String serialNumber,
+  }) async {
+    var changeScriptPath = await _buildAndPushChangeInfoScript(serialNumber);
+    try {
+      var result = await _shell.run(
+        """adb shell su -c "chmod +x $changeScriptPath && $changeScriptPath\"""",
+      );
+      String output = result.outText.trim();
+
+      if (_isConnectionError(output)) {
+        return _logError(
+          serialNumber,
+          "Connection error detected.",
+          result.errText,
+        );
+      }
+
+      if (result.first.exitCode == 0) {
+        return await _runCommand(command: RebootCommand(), serialNumber: serialNumber);
+      } else {
+        return _logError(serialNumber, result.outText, result.errText);
+      }
+    } catch (e) {
+      return _logError(serialNumber, "Exception occurred", e.toString());
+    }
+  }
+
+  DeviceInfo _generateRandomDeviceInfo() {
     final randomDevice =
         deviceInfoList[Random().nextInt(deviceInfoList.length)];
     final model = randomDevice.model;
@@ -306,137 +409,26 @@ class AdbService {
         '$brand/$productName/$device:$releaseVersion/$randStr1.$randStr2/$randStr3:user/release-keys';
     final randomId = _generateRandomHex(8);
     final macSuffix = _generateRandomHex(1);
-
-    // Build shell script content
-    final scriptContent = '''
-#!/system/bin/sh
-# Check and create directories
-[ -d /data/adb/modules ] || mkdir -p /data/adb/modules
-mkdir -p /data/adb/modules/update_device_info
-
-# Write system.prop
-echo 'ro.product.model=$model' > /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.brand=$brand' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.manufacturer=$manufacturer' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.serialno=$serial' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.device=$device' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.name=$productName' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.fingerprint=$fingerprint' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.version.release=$releaseVersion' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.version.sdk=$sdkVersion' >> /data/adb/modules/update_device_info/system.prop
-chmod 644 /data/adb/modules/update_device_info/system.prop
-
-# Update Android ID and clear ad ID
-settings put secure android_id '$randomId'
-rm -rf /data/user_de/0/com.google.android.gms/files/adid_key
-pm clear com.google.android.gms
-
-# Try to spoof MAC address
-WLAN=\$(ip link | grep -o "wlan[0-1]" | head -n 1)
-if [ -n "\$WLAN" ]; then
-  ifconfig \$WLAN down 2>/dev/null || echo "wlan down failed"
-  ip link set \$WLAN address 00:11:22:33:44:$macSuffix 2>/dev/null || echo "MAC spoofing failed"
-  ifconfig \$WLAN up 2>/dev/null || echo "wlan up failed"
-else
-  echo "No wlan interface found"
-fi
-
-echo "Script completed"
-''';
-
-    final scriptPath = await _buildAndPushScript(scriptContent, serialNumber);
-    return _withSerial(
-      'shell "su -c sh $scriptPath && rm $scriptPath"',
-      serialNumber,
+    return DeviceInfo(
+      model: model,
+      brand: brand,
+      manufacturer: manufacturer,
+      serialNo: serial,
+      device: device,
+      productName: productName,
+      fingerprint: fingerprint,
+      releaseVersion: releaseVersion,
+      sdkVersion: sdkVersion,
+      macSuffix: macSuffix,
+      androidId: randomId,
     );
   }
 
-  Future<String> _buildUserInputDeviceInfoCommand(
-    DeviceInfo deviceInfo,
-    String? serialNumber,
-  ) async {
-    final model = deviceInfo.model;
-    final brand = deviceInfo.brand;
-    final manufacturer = deviceInfo.manufacturer;
-    final device = deviceInfo.device;
-    final productName = deviceInfo.productName;
-    final fingerprint = deviceInfo.fingerprint;
-    final releaseVersion = deviceInfo.releaseVersion;
-    final sdkVersion = deviceInfo.sdkVersion;
-
-    final randomId = _generateRandomHex(8);
-    final macSuffix = _generateRandomHex(1);
-
-    // Build shell script content
-    final scriptContent = '''
-#!/system/bin/sh
-# Check and create directories
-[ -d /data/adb/modules ] || mkdir -p /data/adb/modules
-mkdir -p /data/adb/modules/update_device_info
-
-# Write system.prop
-echo 'ro.product.model=$model' > /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.brand=$brand' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.manufacturer=$manufacturer' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.device=$device' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.product.name=$productName' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.fingerprint=$fingerprint' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.version.release=$releaseVersion' >> /data/adb/modules/update_device_info/system.prop
-echo 'ro.build.version.sdk=$sdkVersion' >> /data/adb/modules/update_device_info/system.prop
-chmod 644 /data/adb/modules/update_device_info/system.prop
-
-# Update Android ID and clear ad ID
-settings put secure android_id '$randomId'
-rm -rf /data/user_de/0/com.google.android.gms/files/adid_key
-pm clear com.google.android.gms
-
-# Try to spoof MAC address
-WLAN=\$(ip link | grep -o "wlan[0-1]" | head -n 1)
-if [ -n "\$WLAN" ]; then
-  ifconfig \$WLAN down 2>/dev/null || echo "wlan down failed"
-  ip link set \$WLAN address 00:11:22:33:44:$macSuffix 2>/dev/null || echo "MAC spoofing failed"
-  ifconfig \$WLAN up 2>/dev/null || echo "wlan up failed"
-else
-  echo "No wlan interface found"
-fi
-
-echo "Script completed"
-''';
-
-    final scriptPath = await _buildAndPushScript(scriptContent, serialNumber);
-    return _withSerial(
-      'shell "su -c sh $scriptPath && rm $scriptPath"',
-      serialNumber,
-    );
-  }
-
-  String _generateRandomHex(int byteLength) {
+  String _generateRandomHex(int length) {
     final random = Random();
-    final bytes = List<int>.generate(byteLength, (_) => random.nextInt(256));
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
-  }
-
-  Future<String> _buildAndPushScript(
-    String scriptContent,
-    String? serialNumber,
-  ) async {
-    // Write script to a temporary file on the host
-    final scriptFile = File('temp_script.sh');
-    await scriptFile.writeAsString(scriptContent);
-
-    // Push script to device
-    final pushCmd = _withSerial(
-      'push ${scriptFile.path} /data/local/tmp/change_device_info.sh',
-      serialNumber,
-    );
-    final pushResult = await Process.run('adb', pushCmd.split(' '));
-    if (pushResult.exitCode != 0) {
-      throw Exception('Failed to push script: ${pushResult.stderr}');
-    }
-
-    // Clean up local file
-    await scriptFile.delete();
-
-    return '/data/local/tmp/change_device_info.sh';
+    return List.generate(
+      length,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join().toUpperCase();
   }
 }

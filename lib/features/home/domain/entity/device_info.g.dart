@@ -11,11 +11,14 @@ _$DeviceInfoImpl _$$DeviceInfoImplFromJson(Map<String, dynamic> json) =>
       model: json['model'] as String,
       brand: json['brand'] as String,
       manufacturer: json['manufacturer'] as String,
+      serialNo: json['serialNo'] as String,
       device: json['device'] as String,
       productName: json['productName'] as String,
       releaseVersion: json['releaseVersion'] as String,
       sdkVersion: json['sdkVersion'] as String,
-      fingerprint: json['fingerprint'] as String?,
+      macSuffix: json['macSuffix'] as String,
+      fingerprint: json['fingerprint'] as String,
+      androidId: json['androidId'] as String,
     );
 
 Map<String, dynamic> _$$DeviceInfoImplToJson(_$DeviceInfoImpl instance) =>
@@ -23,9 +26,12 @@ Map<String, dynamic> _$$DeviceInfoImplToJson(_$DeviceInfoImpl instance) =>
       'model': instance.model,
       'brand': instance.brand,
       'manufacturer': instance.manufacturer,
+      'serialNo': instance.serialNo,
       'device': instance.device,
       'productName': instance.productName,
       'releaseVersion': instance.releaseVersion,
       'sdkVersion': instance.sdkVersion,
+      'macSuffix': instance.macSuffix,
       'fingerprint': instance.fingerprint,
+      'androidId': instance.androidId,
     };

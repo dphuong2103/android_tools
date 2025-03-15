@@ -24,11 +24,14 @@ mixin _$DeviceInfo {
   String get model => throw _privateConstructorUsedError;
   String get brand => throw _privateConstructorUsedError;
   String get manufacturer => throw _privateConstructorUsedError;
+  String get serialNo => throw _privateConstructorUsedError;
   String get device => throw _privateConstructorUsedError;
   String get productName => throw _privateConstructorUsedError;
   String get releaseVersion => throw _privateConstructorUsedError;
   String get sdkVersion => throw _privateConstructorUsedError;
-  String? get fingerprint => throw _privateConstructorUsedError;
+  String get macSuffix => throw _privateConstructorUsedError;
+  String get fingerprint => throw _privateConstructorUsedError;
+  String get androidId => throw _privateConstructorUsedError;
 
   /// Serializes this DeviceInfo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -51,11 +54,14 @@ abstract class $DeviceInfoCopyWith<$Res> {
     String model,
     String brand,
     String manufacturer,
+    String serialNo,
     String device,
     String productName,
     String releaseVersion,
     String sdkVersion,
-    String? fingerprint,
+    String macSuffix,
+    String fingerprint,
+    String androidId,
   });
 }
 
@@ -77,11 +83,14 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
     Object? model = null,
     Object? brand = null,
     Object? manufacturer = null,
+    Object? serialNo = null,
     Object? device = null,
     Object? productName = null,
     Object? releaseVersion = null,
     Object? sdkVersion = null,
-    Object? fingerprint = freezed,
+    Object? macSuffix = null,
+    Object? fingerprint = null,
+    Object? androidId = null,
   }) {
     return _then(
       _value.copyWith(
@@ -99,6 +108,11 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
                 null == manufacturer
                     ? _value.manufacturer
                     : manufacturer // ignore: cast_nullable_to_non_nullable
+                        as String,
+            serialNo:
+                null == serialNo
+                    ? _value.serialNo
+                    : serialNo // ignore: cast_nullable_to_non_nullable
                         as String,
             device:
                 null == device
@@ -120,11 +134,21 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
                     ? _value.sdkVersion
                     : sdkVersion // ignore: cast_nullable_to_non_nullable
                         as String,
+            macSuffix:
+                null == macSuffix
+                    ? _value.macSuffix
+                    : macSuffix // ignore: cast_nullable_to_non_nullable
+                        as String,
             fingerprint:
-                freezed == fingerprint
+                null == fingerprint
                     ? _value.fingerprint
                     : fingerprint // ignore: cast_nullable_to_non_nullable
-                        as String?,
+                        as String,
+            androidId:
+                null == androidId
+                    ? _value.androidId
+                    : androidId // ignore: cast_nullable_to_non_nullable
+                        as String,
           )
           as $Val,
     );
@@ -144,11 +168,14 @@ abstract class _$$DeviceInfoImplCopyWith<$Res>
     String model,
     String brand,
     String manufacturer,
+    String serialNo,
     String device,
     String productName,
     String releaseVersion,
     String sdkVersion,
-    String? fingerprint,
+    String macSuffix,
+    String fingerprint,
+    String androidId,
   });
 }
 
@@ -169,11 +196,14 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
     Object? model = null,
     Object? brand = null,
     Object? manufacturer = null,
+    Object? serialNo = null,
     Object? device = null,
     Object? productName = null,
     Object? releaseVersion = null,
     Object? sdkVersion = null,
-    Object? fingerprint = freezed,
+    Object? macSuffix = null,
+    Object? fingerprint = null,
+    Object? androidId = null,
   }) {
     return _then(
       _$DeviceInfoImpl(
@@ -191,6 +221,11 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
             null == manufacturer
                 ? _value.manufacturer
                 : manufacturer // ignore: cast_nullable_to_non_nullable
+                    as String,
+        serialNo:
+            null == serialNo
+                ? _value.serialNo
+                : serialNo // ignore: cast_nullable_to_non_nullable
                     as String,
         device:
             null == device
@@ -212,11 +247,21 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
                 ? _value.sdkVersion
                 : sdkVersion // ignore: cast_nullable_to_non_nullable
                     as String,
+        macSuffix:
+            null == macSuffix
+                ? _value.macSuffix
+                : macSuffix // ignore: cast_nullable_to_non_nullable
+                    as String,
         fingerprint:
-            freezed == fingerprint
+            null == fingerprint
                 ? _value.fingerprint
                 : fingerprint // ignore: cast_nullable_to_non_nullable
-                    as String?,
+                    as String,
+        androidId:
+            null == androidId
+                ? _value.androidId
+                : androidId // ignore: cast_nullable_to_non_nullable
+                    as String,
       ),
     );
   }
@@ -229,11 +274,14 @@ class _$DeviceInfoImpl implements _DeviceInfo {
     required this.model,
     required this.brand,
     required this.manufacturer,
+    required this.serialNo,
     required this.device,
     required this.productName,
     required this.releaseVersion,
     required this.sdkVersion,
-    this.fingerprint,
+    required this.macSuffix,
+    required this.fingerprint,
+    required this.androidId,
   });
 
   factory _$DeviceInfoImpl.fromJson(Map<String, dynamic> json) =>
@@ -246,6 +294,8 @@ class _$DeviceInfoImpl implements _DeviceInfo {
   @override
   final String manufacturer;
   @override
+  final String serialNo;
+  @override
   final String device;
   @override
   final String productName;
@@ -254,11 +304,15 @@ class _$DeviceInfoImpl implements _DeviceInfo {
   @override
   final String sdkVersion;
   @override
-  final String? fingerprint;
+  final String macSuffix;
+  @override
+  final String fingerprint;
+  @override
+  final String androidId;
 
   @override
   String toString() {
-    return 'DeviceInfo(model: $model, brand: $brand, manufacturer: $manufacturer, device: $device, productName: $productName, releaseVersion: $releaseVersion, sdkVersion: $sdkVersion, fingerprint: $fingerprint)';
+    return 'DeviceInfo(model: $model, brand: $brand, manufacturer: $manufacturer, serialNo: $serialNo, device: $device, productName: $productName, releaseVersion: $releaseVersion, sdkVersion: $sdkVersion, macSuffix: $macSuffix, fingerprint: $fingerprint, androidId: $androidId)';
   }
 
   @override
@@ -270,6 +324,8 @@ class _$DeviceInfoImpl implements _DeviceInfo {
             (identical(other.brand, brand) || other.brand == brand) &&
             (identical(other.manufacturer, manufacturer) ||
                 other.manufacturer == manufacturer) &&
+            (identical(other.serialNo, serialNo) ||
+                other.serialNo == serialNo) &&
             (identical(other.device, device) || other.device == device) &&
             (identical(other.productName, productName) ||
                 other.productName == productName) &&
@@ -277,8 +333,12 @@ class _$DeviceInfoImpl implements _DeviceInfo {
                 other.releaseVersion == releaseVersion) &&
             (identical(other.sdkVersion, sdkVersion) ||
                 other.sdkVersion == sdkVersion) &&
+            (identical(other.macSuffix, macSuffix) ||
+                other.macSuffix == macSuffix) &&
             (identical(other.fingerprint, fingerprint) ||
-                other.fingerprint == fingerprint));
+                other.fingerprint == fingerprint) &&
+            (identical(other.androidId, androidId) ||
+                other.androidId == androidId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -288,11 +348,14 @@ class _$DeviceInfoImpl implements _DeviceInfo {
     model,
     brand,
     manufacturer,
+    serialNo,
     device,
     productName,
     releaseVersion,
     sdkVersion,
+    macSuffix,
     fingerprint,
+    androidId,
   );
 
   /// Create a copy of DeviceInfo
@@ -314,11 +377,14 @@ abstract class _DeviceInfo implements DeviceInfo {
     required final String model,
     required final String brand,
     required final String manufacturer,
+    required final String serialNo,
     required final String device,
     required final String productName,
     required final String releaseVersion,
     required final String sdkVersion,
-    final String? fingerprint,
+    required final String macSuffix,
+    required final String fingerprint,
+    required final String androidId,
   }) = _$DeviceInfoImpl;
 
   factory _DeviceInfo.fromJson(Map<String, dynamic> json) =
@@ -331,6 +397,8 @@ abstract class _DeviceInfo implements DeviceInfo {
   @override
   String get manufacturer;
   @override
+  String get serialNo;
+  @override
   String get device;
   @override
   String get productName;
@@ -339,7 +407,11 @@ abstract class _DeviceInfo implements DeviceInfo {
   @override
   String get sdkVersion;
   @override
-  String? get fingerprint;
+  String get macSuffix;
+  @override
+  String get fingerprint;
+  @override
+  String get androidId;
 
   /// Create a copy of DeviceInfo
   /// with the given fields replaced by the non-null parameter values.

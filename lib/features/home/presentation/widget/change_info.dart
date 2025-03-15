@@ -125,6 +125,26 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                         FormBuilderValidators.required(),
                       ]),
                     ),
+                    textField(
+                      name: "macSuffix",
+                      labelText: "Mac Suffix",
+                      validator: FormBuilderValidators.compose([
+                        (val) {
+                          return val == null ? "Required" : null;
+                        },
+                        FormBuilderValidators.required(),
+                      ]),
+                    ),
+                    textField(
+                      name: "androidId",
+                      labelText: "Android ID",
+                      validator: FormBuilderValidators.compose([
+                        (val) {
+                          return val == null ? "Required" : null;
+                        },
+                        FormBuilderValidators.required(),
+                      ]),
+                    ),
                   ],
                 ),
               ),
@@ -158,6 +178,11 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                         releaseVersion:
                             _formKey.currentState?.value["releaseVersion"],
                         sdkVersion: _formKey.currentState?.value["sdkVersion"],
+                        serialNo: _formKey.currentState?.value["serialNo"],
+                        fingerprint:
+                            _formKey.currentState?.value["fingerprint"],
+                        macSuffix: _formKey.currentState?.value["macSuffix"],
+                        androidId: _formKey.currentState?.value["androidId"],
                       );
                     },
                     child: Text("Change"),
@@ -165,7 +190,9 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                   Gap(10),
                   ElevatedButton(
                     onPressed: () {
-                      context.read<HomeCubit>().runCommand(changeDeviceInfoRandomCommand);
+                      context.read<HomeCubit>().runCommand(
+                        changeDeviceInfoRandomCommand,
+                      );
                     },
                     child: Text("Change Random"),
                   ),

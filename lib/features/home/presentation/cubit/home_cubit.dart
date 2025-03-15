@@ -821,7 +821,7 @@ class HomeCubit extends Cubit<HomeState> {
   }) async {
     return adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
-      command: ChangeDeviceInfoCommand.random(),
+      command: ChangeRandomDeviceInfoCommand()
     );
   }
 
@@ -831,7 +831,7 @@ class HomeCubit extends Cubit<HomeState> {
   }) async {
     return adbService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
-      command: ChangeDeviceInfoCommand.userInput(deviceInfo: deviceInfo),
+      command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
     );
   }
 }

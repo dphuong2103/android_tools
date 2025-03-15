@@ -153,33 +153,11 @@ class ClearAppsData extends AdbCommand{
   const ClearAppsData({required this.packages});
 }
 
+class ChangeRandomDeviceInfoCommand extends AdbCommand{
+  const ChangeRandomDeviceInfoCommand();
+}
 
-class ChangeDeviceInfoCommand extends AdbCommand {
-  final bool useRandom;
-  final DeviceInfo? deviceInfo;
-
-  // Random mode: No DeviceInfo required
-  ChangeDeviceInfoCommand.random()
-      : useRandom = true,
-        deviceInfo = null;
-
-  // User-input mode: DeviceInfo required
-  ChangeDeviceInfoCommand.userInput({
-    required this.deviceInfo,
-  }) : useRandom = false;
-
-  // Optional: Factory for runtime validation
-  factory ChangeDeviceInfoCommand({
-    bool useRandom = true,
-    DeviceInfo? deviceInfo,
-  }) {
-    if (useRandom) {
-      return ChangeDeviceInfoCommand.random();
-    } else {
-      if (deviceInfo == null) {
-        throw ArgumentError('DeviceInfo must be provided when useRandom is false');
-      }
-      return ChangeDeviceInfoCommand.userInput(deviceInfo: deviceInfo);
-    }
-  }
+class ChangeDeviceInfoCommand extends AdbCommand{
+  final DeviceInfo deviceInfo;
+  const ChangeDeviceInfoCommand({required this.deviceInfo});
 }
