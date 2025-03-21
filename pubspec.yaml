@@ -64,6 +64,8 @@ dependencies:
   flutter_form_builder: ^10.0.0
   form_builder_validators: ^11.1.2
   resizable_columns: ^0.0.2
+  either_dart: ^1.0.0
+  desktop_multi_window: ^0.2.1
 
 
 dev_dependencies:

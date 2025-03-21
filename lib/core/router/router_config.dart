@@ -1,5 +1,6 @@
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/features/home/presentation/screen/home_screen.dart';
+import 'package:android_tools/features/home/presentation/widget/backup_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/change_info.dart';
 import 'package:android_tools/features/home/presentation/widget/logs.dart';
 import 'package:android_tools/features/login/presentation/screen/login_screen.dart';
@@ -47,6 +48,12 @@ final GoRouter router = GoRouter(
           path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
           pageBuilder: (context, state) => NoTransitionPage(
             child: ChangeDeviceInfo(),
+          ),
+        ),
+        GoRoute(
+          path: '${RouteName.HOME}${RouteName.HOME_BACKUP}',
+          pageBuilder: (context, state) => NoTransitionPage(
+            child: BackupTab(),
           ),
         ),
       ],

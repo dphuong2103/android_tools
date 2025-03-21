@@ -12,7 +12,7 @@ build-windows:
 # Copy all dependencies to build directory if not already present (Windows-compatible)
 copy-dependencies:
 	@echo Copying files from $(DEPENDENCY_FOLDER) to $(FLUTTER_BUILD_DIR)...
-	xcopy /E /I /Y /D "$(DEPENDENCY_FOLDER)\*" "$(FLUTTER_BUILD_DIR)\" >nul
+	xcopy /E /I /Y /D "$(DEPENDENCY_FOLDER)\*" "$(FLUTTER_BUILD_DIR)\dependency\" >nul
 	@echo Copy complete.
 
 # Clean build artifacts

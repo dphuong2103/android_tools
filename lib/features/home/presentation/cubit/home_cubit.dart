@@ -1,14 +1,16 @@
+import 'dart:io';
+
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/core/logging/log_model.dart';
-import 'package:android_tools/core/service/adb_service.dart';
+import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/database_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
-import 'package:android_tools/features/home/domain/entity/adb_command.dart';
+import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/device.dart';
-import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:bloc/bloc.dart';
+import 'package:either_dart/either.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:collection/collection.dart';
@@ -19,7 +21,7 @@ part 'home_cubit.freezed.dart';
 
 part 'home_state.dart';
 
-const command = "command";
+const customCommand = "CustomCommand";
 const rebootCommand = "Reboot";
 const keyCodeCommand = "KEYCODE";
 const openAppCommand = "OpenApp";
@@ -40,12 +42,23 @@ const listPackagesCommand = "ListPackages";
 const setAlwaysOnCommand = "SetAlwaysOn";
 const recoveryCommand = "Recovery";
 const changeDeviceInfoRandomCommand = "ChangeDeviceInfoRandom";
+const setOnGpsCommand = "SetOnGpsCommand";
+const setMockGpsPackageCommand = "SetMockGpsPackage";
+const setAllowMockLocationCommand = "SetAllowMockLocation";
+const setMockLocationCommand = "SetMockLocation";
+const defaultLocationMockPackage = "com.lexa.fakegps";
+const setUpCommand = "SetUp";
+const uninstallInitApkCommand = "UninstallInitApk";
+const removeAppsDataCommand = "RemoveAppsData";
+const openChPlayWithUrlCommand = "OpenChPlayWithUrl";
+const inputTextCommand = "InputText";
+const pullCommand = "Pull";
 
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(const HomeState());
 
   final List<String> commandList = [
-    command,
+    customCommand,
     rebootCommand,
     keyCodeCommand,
     openAppCommand,
@@ -64,10 +77,20 @@ class HomeCubit extends Cubit<HomeState> {
     listPackagesCommand,
     setAlwaysOnCommand,
     recoveryCommand,
-    changeDeviceInfoRandomCommand
+    changeDeviceInfoRandomCommand,
+    setOnGpsCommand,
+    setMockGpsPackageCommand,
+    setAllowMockLocationCommand,
+    setMockLocationCommand,
+    setUpCommand,
+    uninstallInitApkCommand,
+    removeAppsDataCommand,
+    inputTextCommand,
+    openChPlayWithUrlCommand,
+    pullCommand,
   ];
 
-  final AdbService adbService = sl();
+  final CommandService commandService = sl();
   final DatabaseService dbService = sl();
   final ShellService shellService = sl();
   final TextFileService textFileService = sl();
@@ -84,13 +107,13 @@ class HomeCubit extends Cubit<HomeState> {
     final result = await db.query(TableName.devices);
     final deviceList = result.map((data) => Device.fromJson(data)).toList();
 
-    var adbDeviceList = await adbService.deviceList();
+    var adbDeviceList = await commandService.deviceList();
     var adbDeviceStatusMap = {
       for (var device in adbDeviceList)
         device.serialNumber: device.status ?? DeviceStatus.notConnected,
     };
 
-    var adbGetGeoResult = await adbService.runCommandOnMultipleDevices(
+    var adbGetGeoResult = await commandService.runCommandOnMultipleDevices(
       deviceSerials:
           adbDeviceList
               .where((d) => d.status == AdbDeviceStatus.connected)
@@ -137,13 +160,13 @@ class HomeCubit extends Cubit<HomeState> {
       return;
     }
 
-    var adbDeviceList = await adbService.deviceList();
+    var adbDeviceList = await commandService.deviceList();
     var adbDeviceStatusMap = {
       for (var device in adbDeviceList)
         device.serialNumber: device.status ?? DeviceStatus.notConnected,
     };
 
-    var adbGetGeoResult = await adbService.runCommandOnMultipleDevices(
+    var adbGetGeoResult = await commandService.runCommandOnMultipleDevices(
       deviceSerials:
           adbDeviceList
               .where((d) => d.status == AdbDeviceStatus.connected)
@@ -195,9 +218,9 @@ class HomeCubit extends Cubit<HomeState> {
     return result.isNotEmpty;
   }
 
-  Future<AdbResult> addDevice(String ip) async {
+  Future<CommandResult> addDevice(String ip) async {
     emit(state.copyWith(isAddingDevice: true));
-    var deviceList = await adbService.deviceList();
+    var deviceList = await commandService.deviceList();
     if (deviceList.firstWhereOrNull((d) => d.serialNumber == ip) != null) {
       final Database db = await dbService.database;
       await db.insert(TableName.devices, {'ip': ip});
@@ -205,10 +228,10 @@ class HomeCubit extends Cubit<HomeState> {
       await getDevices();
 
       emit(state.copyWith(isAddingDevice: false));
-      return AdbResult(success: true, message: "Success");
+      return CommandResult(success: true, message: "Success");
     }
 
-    var connectResult = await adbService.connectOverTcpIp(ip);
+    var connectResult = await commandService.connectOverTcpIp(ip);
 
     if (connectResult.success) {
       final Database db = await dbService.database;
@@ -248,31 +271,394 @@ class HomeCubit extends Cubit<HomeState> {
     }).toList();
   }
 
-  Future<void> runCommandWithRepeatTime({
-    required String command,
-    required int? repeatTime,
-  }) async {
-    if (repeatTime == null) {
-      runCommand(command);
-      return;
+  Either<String, Command> parseCommand(String command) {
+    logCubit.log(
+      title: "Parse Command: ",
+      message: command.isEmpty ? "Empty" : command,
+      type: LogType.DEBUG,
+    );
+    if (command.isEmpty) return Left("Command is empty");
+
+    var lowerCaseCommand = command.toLowerCase();
+    if (lowerCaseCommand.startsWith(rebootCommand.toLowerCase())) {
+      return Right(RebootCommand());
     }
-    if (repeatTime == -1) {
-      while (true) {
-        runCommand(command);
-      }
-    } else {
-      for (int i = 1; i <= repeatTime; i++) {
-        runCommand(command);
-      }
+    if (lowerCaseCommand.startsWith(keyCodeCommand.toLowerCase())) {
+      return Right(KeyCommand(command));
     }
+
+    if (lowerCaseCommand.startsWith(fastbootCommand.toLowerCase())) {
+      return Right(RebootBootLoaderCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(openAppCommand.toLowerCase())) {
+      var packageName = getValueInsideParentheses(command);
+      if (packageName == null || packageName.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid package name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid package name");
+      }
+      return Right(OpenPackageCommand(packageName));
+    }
+    if (lowerCaseCommand.startsWith(closeAppCommand.toLowerCase())) {
+      var packageName = getValueInsideParentheses(command);
+      if (packageName == null || packageName.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid package name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid package name");
+        ;
+      }
+      return Right(ClosePackageCommand(packageName));
+    }
+
+    if (lowerCaseCommand.startsWith(runScriptCommand.toLowerCase())) {
+      var scriptName = getValueInsideParentheses(command);
+      if (scriptName == null || scriptName.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid script name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid script name");
+      }
+      return Right(RunScriptCommand(scriptName: scriptName));
+    }
+
+    if (lowerCaseCommand.startsWith(tapCommand.toLowerCase())) {
+      String? position = getValueInsideParentheses(command);
+      if (position == null || position.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid position",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid position");
+      }
+      double? x = double.tryParse(position.split(" ")[0]);
+      double? y = double.tryParse(position.split(" ")[1]);
+      if (x == null || y == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid position",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid position");
+      }
+      return Right(TapCommand(x: x, y: y));
+    }
+
+    if (lowerCaseCommand.startsWith(swipeCommand.toLowerCase())) {
+      String? swipeData = getValueInsideParentheses(command);
+      if (swipeData == null || swipeData.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid swipe data",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid Swipe Data");
+      }
+      double? x1 = double.tryParse(swipeData.split(" ")[0]);
+      double? y1 = double.tryParse(swipeData.split(" ")[1]);
+      double? x2 = double.tryParse(swipeData.split(" ")[2]);
+      double? y2 = double.tryParse(swipeData.split(" ")[3]);
+      int? duration = int.tryParse(swipeData.split(" ")[4]);
+      if (x1 == null ||
+          y1 == null ||
+          x2 == null ||
+          y2 == null ||
+          duration == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid swipe data",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid Swipe Data");
+      }
+      return Right(
+        SwipeCommand(
+          startX: x1,
+          startY: y1,
+          endX: x2,
+          endY: y2,
+          duration: duration,
+        ),
+      );
+    }
+
+    if (lowerCaseCommand.startsWith(waitCommand.toLowerCase())) {
+      int? delayInSecond = int.tryParse(
+        getValueInsideParentheses(command) ?? "0",
+      );
+      if (delayInSecond == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid delay time",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid delay time (time must be in seconds)");
+      }
+      return Right(WaitCommand(delayInSecond: delayInSecond));
+    }
+
+    if (lowerCaseCommand.startsWith(installApkCommand.toLowerCase())) {
+      String? apkName = getValueInsideParentheses(command);
+      if (apkName == null || apkName.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid apk name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid apk name");
+      }
+      return Right(InstallApkCommand(apkName));
+    }
+
+    if (lowerCaseCommand.startsWith(uninstallAppsCommand.toLowerCase())) {
+      List<String>? packages = getValueInsideParentheses(command)?.split(",");
+      if (packages == null || packages.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid package name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid package name");
+      }
+      return Right(UninstallAppsCommand(packages));
+    }
+
+    if (lowerCaseCommand.startsWith(changeTimezoneCommand.toLowerCase())) {
+      String? timeZoneKey = getValueInsideParentheses(command);
+      if (timeZoneKey == null || timeZoneKey.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid timezone",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid timezone key");
+      }
+      return Right(ChangeTimeZoneCommand(timeZone: timeZoneKey));
+    }
+
+    if (lowerCaseCommand.startsWith(setProxyCommand.toLowerCase())) {
+      String? portAndProxy = getValueInsideParentheses(command);
+      var port = portAndProxy?.split(":")[1];
+      var ip = portAndProxy?.split(":")[0];
+      if (port == null || ip == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid port or ip",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid port or ip");
+      }
+      return Right(SetProxyCommand(port: port, ip: ip));
+    }
+
+    if (lowerCaseCommand.startsWith(verifyProxyCommand.toLowerCase())) {
+      return Right(VerifyProxyCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(removeProxyCommand.toLowerCase())) {
+      return Right(RemoveProxyCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(listPackagesCommand.toLowerCase())) {
+      return Right(GetPackagesCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(setAlwaysOnCommand.toLowerCase())) {
+      int? alwaysOn =
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
+      if (alwaysOn == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid always on value (0 or 1)",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid always on value (0 or 1)");
+      }
+      return Right(SetAlwaysOnCommand(value: alwaysOn));
+    }
+
+    if (lowerCaseCommand.startsWith(recoveryCommand.toLowerCase())) {
+      return Right(RecoveryCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(setOnGpsCommand.toLowerCase())) {
+      int? isOn =
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
+      if (isOn == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid always on value (0 or 1)",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid always on value (0 or 1)");
+      }
+      return Right(SetOnGpsCommand(isOn: isOn == 0 ? false : true));
+    }
+
+    if (lowerCaseCommand.startsWith(
+      changeDeviceInfoRandomCommand.toLowerCase(),
+    )) {
+      return Right(ChangeDeviceInfoRandomCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(setMockGpsPackageCommand.toLowerCase())) {
+      String? packageName = getValueInsideParentheses(command);
+      if (packageName == null || packageName.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid package name",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid package name");
+      }
+      return Right(SetMockLocationPackageCommand(packageName: packageName));
+    }
+
+    if (lowerCaseCommand.startsWith(
+      setAllowMockLocationCommand.toLowerCase(),
+    )) {
+      int? isAllow =
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
+      if (isAllow == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid value (0 or 1)",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid value (0 or 1)");
+      }
+      return Right(
+        SetAllowMockLocationCommand(isAllow: isAllow == 0 ? false : true),
+      );
+    }
+
+    if (lowerCaseCommand.startsWith(setMockLocationCommand.toLowerCase())) {
+      String? value = getValueInsideParentheses(command);
+      double? lon;
+      double? lat;
+      if (value?.split(" ")[0] != null) {
+        lon = double.tryParse(value!.split(" ")[0])!;
+      }
+      if (value?.split(" ")[1] != null) {
+        lat = double.tryParse(value!.split(" ")[1])!;
+      }
+      if (lon == null || lat == null) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid lat or lon",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid lat or lon");
+      }
+      return Right(SetMockLocationCommand(longitude: lon, latitude: lat));
+    }
+
+    if (lowerCaseCommand.startsWith(setUpCommand.toLowerCase())) {
+      return Right(SetUpCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(uninstallInitApkCommand.toLowerCase())) {
+      return Right(UninstallInitApkCommand());
+    }
+
+    if (lowerCaseCommand.startsWith(removeAppsDataCommand.toLowerCase())) {
+      List<String>? packages = getValueInsideParentheses(command)?.split(",");
+      if (packages == null || packages.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid package name (package1, package2)",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid package name (package1, package2)");
+      }
+      return Right(ClearAppsData(packages: packages));
+    }
+
+    if (lowerCaseCommand.startsWith(inputTextCommand.toLowerCase())) {
+      String? text = getValueInsideParentheses(command);
+      if (text == null || text.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid text",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid text");
+      }
+      return Right(InputTextCommand(text: text));
+    }
+
+    if (lowerCaseCommand.startsWith(customCommand.toLowerCase())) {
+      String? customCommand = getValueInsideParentheses(command);
+      if (customCommand == null || customCommand.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid command",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid command");
+      }
+      return Right(CustomCommand(command: customCommand));
+    }
+
+    if (lowerCaseCommand.startsWith(openChPlayWithUrlCommand.toLowerCase())) {
+      String? url = getValueInsideParentheses(command);
+      if (url == null || url.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid url",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid url");
+      }
+      return Right(OpenChPlayWithUrlCommand(url: url));
+    }
+
+    if (lowerCaseCommand.startsWith(pullCommand.toLowerCase())) {
+      String? path = getValueInsideParentheses(command);
+      String? source = path?.split(" ")[0];
+      String? destination = path?.split(" ")[1];
+      if (source == null ||
+          source.isEmpty ||
+          destination == null ||
+          destination.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid path (source destination)",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid path");
+      }
+      return Right(
+        PullFileCommand(sourcePath: source, destinationPath: destination),
+      );
+    }
+
+    logCubit.log(
+      title: "Error: ",
+      message: "Invalid command",
+      type: LogType.ERROR,
+    );
+
+    return Left("Invalid command");
   }
 
-  Future<void> runCommand(String command) async {
-    if (command.isEmpty) {
-      return;
-    }
-
-    logCubit.log(title: "Run Command: ", message: command);
+  Future<void> executeCommand({required Command command}) async {
+    logCubit.log(title: "Run Command: ", message: command.toString());
 
     // Update status to inProgress for selected devices
     emit(
@@ -288,255 +674,90 @@ class HomeCubit extends Cubit<HomeState> {
             }).toList(),
       ),
     );
-
-    // Extract device IPs of selected devices
     var deviceIps =
         state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
-    List<AdbResult> results = [];
-    command = command.toLowerCase();
-
-    try {
-      if (command == "KEYCODE_HOME".toLowerCase()) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: KeyCommand("KEYCODE_HOME"),
-        );
-      }
-      if (command == "KEYCODE_BACK".toLowerCase()) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: KeyCommand("KEYCODE_BACK"),
-        );
-      }
-
-      if (command == "KEYCODE_APP_SWITCH".toLowerCase()) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: KeyCommand("KEYCODE_APP_SWITCH"),
-        );
-      }
-
-      if (command == rebootCommand.toLowerCase()) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: RebootCommand(),
-        );
-      } else if (command.startsWith(keyCodeCommand.toLowerCase())) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: KeyCommand(command),
-        );
-      } else if (command.startsWith(fastbootCommand.toLowerCase())) {
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: RebootBootLoaderCommand(),
-        );
-      } else if (command.startsWith(openAppCommand.toLowerCase())) {
-        var packageName = getValueInsideParentheses(command);
-        var commandResults = await openApp(deviceIps, packageName);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(closeAppCommand.toLowerCase())) {
-        var packageName = getValueInsideParentheses(command);
-        if (packageName == null) return;
-        results = await adbService.runCommandOnMultipleDevices(
-          deviceSerials: deviceIps,
-          command: ClosePackageCommand(packageName),
-        );
-      } else if (command.startsWith(runScriptCommand.toLowerCase())) {
-        var scriptName = getValueInsideParentheses(command);
-        if (scriptName == null ||
-            scriptName.isEmpty ||
-            !await scriptExists(scriptName)) {
-          logCubit.log(
-            title: "Not found: ",
-            message: "$scriptName",
-            type: LogType.ERROR,
-          );
-        }
-        List<String>? scripts = await textFileService.readData(
-          scriptPath(scriptName!),
-        );
-
-        if (scripts == null || scripts.isEmpty) {
-          logCubit.log(
-            title: "Empty: ",
-            message: scriptName,
-            type: LogType.ERROR,
-          );
-        }
-
-        for (var scriptCommand in scripts!) {
-          await runCommand(scriptCommand);
-        }
-      } else if (command.startsWith(tapCommand.toLowerCase())) {
-        String? position = getValueInsideParentheses(command);
-        if (position == null || position.isEmpty) {
-          logCubit.log(
-            title: "Empty: ",
-            message: "position is empty",
-            type: LogType.ERROR,
-          );
-        } else {
-          double? x = double.tryParse(position.split(" ")[0]);
-          double? y = double.tryParse(position.split(" ")[1]);
-          if (x != null && y != null) {
-            results = await adbService.runCommandOnMultipleDevices(
-              deviceSerials: deviceIps,
-              command: TapCommand(x: x, y: y),
-            );
-          }
-        }
-      } else if (command.toLowerCase().startsWith(swipeCommand.toLowerCase())) {
-        String? swipeData = getValueInsideParentheses(command);
-        if (swipeData == null || swipeData.isEmpty) {
-          logCubit.log(
-            title: "Empty: ",
-            message: "Swipe data is empty",
-            type: LogType.ERROR,
-          );
-        } else {
-          double? x1 = double.tryParse(swipeData.split(" ")[0]);
-          double? y1 = double.tryParse(swipeData.split(" ")[1]);
-          double? x2 = double.tryParse(swipeData.split(" ")[2]);
-          double? y2 = double.tryParse(swipeData.split(" ")[3]);
-          int? duration = int.tryParse(swipeData.split(" ")[4]);
-          if (x1 == null ||
-              y1 == null ||
-              x2 == null ||
-              y2 == null ||
-              duration == null) {
-            logCubit.log(title: "Invalid swipe input", type: LogType.ERROR);
-          } else {
-            results = await adbService.runCommandOnMultipleDevices(
-              deviceSerials: deviceIps,
-              command: SwipeCommand(
-                startX: x1,
-                startY: y1,
-                endX: x2,
-                endY: y2,
-                duration: duration,
-              ),
-            );
-          }
-        }
-      } else if (command.startsWith(waitCommand.toLowerCase())) {
-        int? delayInSecond = int.tryParse(
-          getValueInsideParentheses(command) ?? "0",
-        );
-        if (delayInSecond != null && delayInSecond != 0) {
-          await Future.delayed(Duration(seconds: delayInSecond));
-        }
-      } else if (command.startsWith(installApkCommand.toLowerCase())) {
-        String? apkName = getValueInsideParentheses(command);
-        var commandResults = await installApk(deviceIps, apkName);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(uninstallAppsCommand.toLowerCase())) {
-        List<String>? packages = getValueInsideParentheses(command)?.split(",");
-        if (packages != null && packages.isNotEmpty) {
-          for (var packageName in packages) {
-            packageName = packageName.trim();
-          }
-        }
-        var commandResults = await uninstallApps(deviceIps, packages);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(changeTimezoneCommand.toLowerCase())) {
-        String? timeZoneKey = getValueInsideParentheses(command);
-        var commandResults = await changeTimeZone(
-          deviceSerials: deviceIps,
-          timeZone: timeZoneKey,
-        );
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(setProxyCommand.toLowerCase())) {
-        String? portAndProxy = getValueInsideParentheses(command);
-        var port = portAndProxy?.split(":")[1];
-        var ip = portAndProxy?.split(":")[0];
-        var commandResults = await setProxy(
-          deviceSerials: deviceIps,
-          port: port,
-          ip: ip,
-        );
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(verifyProxyCommand.toLowerCase())) {
-        var commandResults = await verifyProxy(deviceSerials: deviceIps);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(removeProxyCommand.toLowerCase())) {
-        var commandResults = await removeProxy(deviceSerials: deviceIps);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(listPackagesCommand.toLowerCase())) {
-        var commandResults = await listPackages(deviceSerials: deviceIps);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(setAlwaysOnCommand.toLowerCase())) {
-        int? alwaysOn =
-            getValueInsideParentheses(command) != null
-                ? int.tryParse(getValueInsideParentheses(command)!)
-                : null;
-        var commandResults = await setAlwaysOn(
-          value: alwaysOn,
-          deviceSerials: deviceIps,
-        );
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      } else if (command.startsWith(recoveryCommand.toLowerCase())) {
-        var commandResults = await rebootRecovery(deviceSerials: deviceIps);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      }
-      else if (command.startsWith(changeDeviceInfoRandomCommand.toLowerCase())) {
-        var commandResults = await changeDeviceInfoRandom(deviceSerials: deviceIps);
-        if (commandResults != null) {
-          results = commandResults;
-        }
-      }
-
-      // Update device statuses based on results
+    List<CommandResult> results = [];
+    if (command is SetUpCommand) {
+      await setupPhone(deviceSerials: deviceIps);
       emit(
         state.copyWith(
           devices:
               state.devices.map((device) {
-                if (!device.isSelected) return device;
-
-                var result = results.firstWhereOrNull(
-                  (r) => r.serialNumber == device.ip,
-                );
-                if (result == null) {
-                  return device;
+                if (device.isSelected) {
+                  return device.copyWith(
+                    commandStatus: DeviceCommandStatus.success,
+                  );
                 }
-
-                return device.copyWith(
-                  commandStatus:
-                      result.success
-                          ? DeviceCommandStatus.success
-                          : '${DeviceCommandStatus.failed}: ${result.error}',
-                );
+                return device;
               }).toList(),
         ),
       );
-    } catch (e) {
+      return;
+    }
+
+    if (command is BackupCommand) {
+      var tasks = await Future.wait(
+        deviceIps
+            .map(
+              (serialNumber) => backupPhone(
+                serialNumber: serialNumber,
+                name: command.backupName,
+              ),
+            )
+            .toList(),
+      );
+      emit(
+        state.copyWith(
+          devices:
+              state.devices.map((device) {
+                if (device.isSelected) {
+                  return device.copyWith(
+                    commandStatus: DeviceCommandStatus.success,
+                  );
+                }
+                return device;
+              }).toList(),
+        ),
+      );
+      return;
+    }
+
+    try {
+      results = await commandService.runCommandOnMultipleDevices(
+        deviceSerials: deviceIps,
+        command: command,
+      );
+    } catch (error) {
       logCubit.log(
         title: "Command Error: ",
-        message: e.toString(),
+        message: error.toString(),
         type: LogType.ERROR,
       );
     }
+
+    emit(
+      state.copyWith(
+        devices:
+            state.devices.map((device) {
+              if (!device.isSelected) return device;
+
+              var result = results.firstWhereOrNull(
+                (r) => r.serialNumber == device.ip,
+              );
+              if (result == null) {
+                return device;
+              }
+
+              return device.copyWith(
+                commandStatus:
+                    result.success
+                        ? DeviceCommandStatus.success
+                        : '${DeviceCommandStatus.failed}: ${result.error}',
+              );
+            }).toList(),
+      ),
+    );
   }
 
   Future<void> showScreen() async {
@@ -608,7 +829,7 @@ class HomeCubit extends Cubit<HomeState> {
       whereArgs: deviceSerials,
     );
 
-    await adbService.runCommandOnMultipleDevices(
+    await commandService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
       command: DisconnectCommand(),
     );
@@ -621,9 +842,9 @@ class HomeCubit extends Cubit<HomeState> {
       var devices =
           state.devices.where((device) => isValidIp(device.ip)).toList();
       var deviceSerials = devices.map((device) => device.ip).toList();
-      List<Future<AdbResult>> tasks =
+      List<Future<CommandResult>> tasks =
           deviceSerials.map((deviceIp) async {
-            return await adbService.connectOverTcpIp(deviceIp);
+            return await commandService.connectOverTcpIp(deviceIp);
           }).toList();
       await Future.wait(tasks);
     } finally {
@@ -658,180 +879,150 @@ class HomeCubit extends Cubit<HomeState> {
     return apkFileService.fileExists(apkName);
   }
 
-  Future<List<AdbResult>?> installApk(
-    List<String> deviceSerials,
-    String? apkName,
-  ) async {
-    if (apkName == null) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Apk name empty",
-        type: LogType.ERROR,
+  Future<void> setupPhone({required List<String> deviceSerials}) async {
+    await executeCommand(command: KeyCommand("KEYCODE_HOME"));
+    await executeCommand(command: InstallApkCommand("link2sd"));
+    await executeCommand(command: InstallApkCommand("hide_mock_location"));
+    await executeCommand(command: InstallApkCommand("google_chrome"));
+    await executeCommand(command: InstallApkCommand("device_info"));
+    await executeCommand(command: InstallApkCommand("fake_gps"));
+    await executeCommand(command: SetAlwaysOnCommand(value: 1));
+    await executeCommand(
+      command: SetMockLocationPackageCommand(
+        packageName: defaultLocationMockPackage,
+      ),
+    );
+    await executeCommand(command: SetAlwaysOnCommand(value: 0));
+    await executeCommand(command: RebootCommand());
+  }
+
+  Future<CommandResult> backupPhone({
+    required String serialNumber,
+    required String name,
+  }) async {
+    var currentPath = Directory.current.path;
+    final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
+
+    var result = await executeMultipleCommandsOn1Device(
+      successMessage: "Backup successfully",
+      tasks: [
+        () => commandService.runCommand(
+          command: RecoveryCommand(),
+          serialNumber: serialNumber,
+        ),
+        () => waitForTWRP(serialNumber),
+        () => commandService.runCommand(
+          command: CustomCommand(
+            command: "-s $serialNumber shell twrp backup BDE '$name'",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => createBackupFolderIfNotExists(
+          serialNumber: serialNumber,
+          backupName: name,
+        ),
+        () => commandService.runCommand(
+          command: PullFileCommand(
+            sourcePath: backupDir,
+            destinationPath: '$currentPath/file/rss/$serialNumber/',
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+        ),
+      ],
+    );
+
+    if (result.isLeft) {
+      return result.left;
+    } else {
+      return CommandResult(
+        success: true,
+        message: "Back up $serialNumber successfully",
       );
-      return null;
     }
-    if (!await apkFileExists(apkName)) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Apk $apkName not found",
-        type: LogType.ERROR,
+  }
+
+  // Future<CommandResult> restorePhone({
+  //   required String serialNumber,
+  //   required String name,
+  // }) {
+  //   var currentPath = Directory.current.path;
+  //   final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
+  // }
+
+  Future<CommandResult> waitForTWRP(String deviceSerial) async {
+    logCubit.log(title: "Waiting for TWRP...", type: LogType.DEBUG);
+    int i = 0;
+    while (i <= 100) {
+      try {
+        // Execute the ADB command to check for TWRP
+        ProcessResult result = await Process.run('adb', [
+          '-s',
+          deviceSerial,
+          'shell',
+          'ls /sbin',
+        ], runInShell: true);
+
+        // Check if 'twrp' appears in the output
+        if (result.stdout.toString().contains('twrp')) {
+          logCubit.log(title: "TWRP detected...", type: LogType.DEBUG);
+          return CommandResult(success: true, message: "TWRP detected");
+        } else {
+          // Get device state
+          ProcessResult stateResult = await Process.run('adb', [
+            '-s',
+            deviceSerial,
+            'get-state',
+          ], runInShell: true);
+          await Future.delayed(Duration(seconds: 2));
+        }
+      } catch (e) {
+        logCubit.log(
+          title: "Open TWRP Error...",
+          message: e.toString(),
+          type: LogType.DEBUG,
+        );
+        return CommandResult(success: false, message: "TWRP not detected");
+      }
+      await Future.delayed(Duration(seconds: 2));
+      i++;
+    }
+    return CommandResult(success: false, message: "TWRP not detected");
+  }
+
+  Future<Either<CommandResult, CommandResult>>
+  executeMultipleCommandsOn1Device({
+    required List<Future<CommandResult> Function()> tasks,
+    required String successMessage,
+  }) async {
+    for (var task in tasks) {
+      var result = await task();
+      if (!result.success) return Left(result);
+    }
+    return Right(CommandResult(success: true, message: successMessage));
+  }
+
+  Future<CommandResult> createBackupFolderIfNotExists({
+    required String serialNumber,
+    required String backupName,
+  }) async {
+    try {
+      var currentPath = Directory.current.path;
+      Directory directory = Directory("$currentPath/file/rss/$serialNumber/");
+      if (!(await directory.exists())) {
+        await directory.create(recursive: true);
+      }
+      return CommandResult(
+        success: true,
+        message: "Create folder ${directory.path} successfully!",
       );
-      return null;
+    } catch (e) {
+      return CommandResult(success: false, message: e.toString());
     }
-
-    String apkPath = await apkFileService.filePath(apkName);
-    apkPath = apkPath.replaceAll("/", "\\");
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: InstallApkCommand(apkPath),
-    );
-  }
-
-  Future<List<AdbResult>?> uninstallApps(
-    List<String> deviceSerials,
-    List<String>? packages,
-  ) async {
-    if (packages == null || packages.isEmpty) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Invalid package name",
-        type: LogType.ERROR,
-      );
-      return null;
-    }
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: UninstallAppsCommand(packages),
-    );
-  }
-
-  Future<List<AdbResult>?> openApp(
-    List<String> deviceSerials,
-    String? packageName,
-  ) async {
-    if (packageName == null || packageName.isEmpty) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Invalid package name",
-        type: LogType.ERROR,
-      );
-      return null;
-    }
-    return await adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: OpenPackageCommand(packageName),
-    );
-  }
-
-  Future<List<AdbResult>?> changeTimeZone({
-    required List<String> deviceSerials,
-    String? timeZone,
-  }) async {
-    if (timeZone == null || timeZone.isEmpty) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Invalid TimeZone",
-        type: LogType.ERROR,
-      );
-
-      return null;
-    }
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: ChangeTimeZoneCommand(timeZone: timeZone),
-    );
-  }
-
-  Future<List<AdbResult>?> setProxy({
-    required List<String> deviceSerials,
-    String? port,
-    String? ip,
-  }) async {
-    if (port == null || port.isEmpty || ip == null || ip.isEmpty) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Invalid Port or Ip",
-        type: LogType.ERROR,
-      );
-
-      return null;
-    }
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: SetProxyCommand(ip: ip, port: port),
-    );
-  }
-
-  Future<List<AdbResult>?> removeProxy({
-    required List<String> deviceSerials,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: RemoveProxyCommand(),
-    );
-  }
-
-  Future<List<AdbResult>?> verifyProxy({
-    required List<String> deviceSerials,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: VerifyProxyCommand(),
-    );
-  }
-
-  Future<List<AdbResult>?> listPackages({
-    required List<String> deviceSerials,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: GetPackagesCommand(),
-    );
-  }
-
-  Future<List<AdbResult>?> setAlwaysOn({
-    required int? value,
-    required List<String> deviceSerials,
-  }) async {
-    if (value == null) {
-      logCubit.log(
-        title: "Error: ",
-        message: "Invalid Port or Ip",
-        type: LogType.ERROR,
-      );
-      return null;
-    }
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: SetAlwaysOnCommand(value: value),
-    );
-  }
-
-  Future<List<AdbResult>?> rebootRecovery({
-    required List<String> deviceSerials,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: RecoveryCommand(),
-    );
-  }
-
-  Future<List<AdbResult>?> changeDeviceInfoRandom({
-    required List<String> deviceSerials,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: ChangeRandomDeviceInfoCommand()
-    );
-  }
-
-  Future<List<AdbResult>?> changeDeviceInfoUserInput({
-    required List<String> deviceSerials,
-    required DeviceInfo deviceInfo,
-  }) async {
-    return adbService.runCommandOnMultipleDevices(
-      deviceSerials: deviceSerials,
-      command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
-    );
   }
 }
+
+// adb shell settings put global verifier_verify_adb_installs 0
