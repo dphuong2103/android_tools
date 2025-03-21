@@ -1,5 +1,11 @@
+import 'dart:math';
+
+import 'package:android_tools/core/constant/location_mapping.dart';
 import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/router/route_name.dart';
+import 'package:android_tools/core/sub_window/sub_window.dart';
+import 'package:android_tools/core/util/sub_window_util.dart';
+import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -53,6 +59,11 @@ class _HomeViewState extends State<HomeView>
   late final TextEditingController _repeatController;
   late final TextEditingController _geoController;
   late final TabController _tabController;
+  final tabs = <Widget>[
+    Tab(text: "Logs"),
+    Tab(text: "Change info"),
+    Tab(text: "Backup (RSS)"),
+  ];
 
   @override
   void initState() {
@@ -60,7 +71,7 @@ class _HomeViewState extends State<HomeView>
     _commandController = TextEditingController();
     _geoController = TextEditingController();
     _ipController = TextEditingController();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: tabs.length, vsync: this);
     super.initState();
   }
 
@@ -171,11 +182,19 @@ class _HomeViewState extends State<HomeView>
                           );
                         }
                       }
-                      context.read<HomeCubit>().runCommand(command);
-                      // context.read<HomeCubit>().runCommandWithRepeatTime(
-                      //   command: commandController.text,
-                      //   repeatTime: int.tryParse(repeatTimesString),
-                      // );
+
+                      var adbCommand = context.read<HomeCubit>().parseCommand(
+                        command,
+                      );
+                      if (adbCommand.isLeft) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(adbCommand.left)),
+                        );
+                        return;
+                      }
+                      context.read<HomeCubit>().executeCommand(
+                        command: adbCommand.right,
+                      );
                     },
                     child: Text("Run"),
                   ),
@@ -255,22 +274,26 @@ class _HomeViewState extends State<HomeView>
                   IconButton(
                     icon: Icon(Icons.arrow_back_ios_new),
                     onPressed: () {
-                      context.read<HomeCubit>().runCommand("KEYCODE_BACK");
+                      context.read<HomeCubit>().executeCommand(
+                        command: KeyCommand("KEYCODE_BACK"),
+                      );
                     },
                   ),
                   Gap(2),
                   IconButton(
                     icon: Icon(Icons.home),
                     onPressed: () {
-                      context.read<HomeCubit>().runCommand("KEYCODE_HOME");
+                      context.read<HomeCubit>().executeCommand(
+                        command: KeyCommand("KEYCODE_HOME"),
+                      );
                     },
                   ),
                   Gap(2),
                   IconButton(
                     icon: Icon(Icons.menu),
                     onPressed: () {
-                      context.read<HomeCubit>().runCommand(
-                        "KEYCODE_APP_SWITCH",
+                      context.read<HomeCubit>().executeCommand(
+                        command: KeyCommand("KEYCODE_APP_SWITCH"),
                       );
                     },
                   ),
@@ -347,6 +370,16 @@ class _HomeViewState extends State<HomeView>
                         );
                         return;
                       }
+                      var location =
+                          timezoneCoordinates[selectedTimeZone]?[Random()
+                              .nextInt(2)];
+                      if (location == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Cannot find location")),
+                        );
+                        return;
+                      }
+
                       var hasSelectDevice = state.devices.firstWhereOrNull(
                         (device) => device.isSelected,
                       );
@@ -358,8 +391,17 @@ class _HomeViewState extends State<HomeView>
                         );
                         return;
                       }
-                      context.read<HomeCubit>().runCommand(
-                        "$changeTimezoneCommand(${timezoneMap[selectedTimeZone]})",
+
+                      await context.read<HomeCubit>().executeCommand(
+                        command: ChangeTimeZoneCommand(
+                          timeZone: timezoneMap[selectedTimeZone]!,
+                        ),
+                      );
+                      await context.read<HomeCubit>().executeCommand(
+                        command: SetMockLocationCommand(
+                          latitude: location['lon']!,
+                          longitude: location['lat']!,
+                        ),
                       );
                     },
                     child: Text("Change Geo"),
@@ -389,6 +431,7 @@ class _HomeViewState extends State<HomeView>
                                   isSelectAll,
                                 );
                               },
+
                               headingCheckboxTheme: const CheckboxThemeData(
                                 side: BorderSide(width: 2.0),
                               ),
@@ -413,7 +456,16 @@ class _HomeViewState extends State<HomeView>
                               rows:
                                   state.devices
                                       .map(
-                                        (device) => DataRow(
+                                        (device) => DataRow2(
+                                          onDoubleTap: () {
+                                            openSubWindow(
+                                              windowId: device.ip,
+                                              subWindow: SubWindow.phoneDetails(
+                                                device: device,
+                                              ),
+                                              title: device.ip,
+                                            );
+                                          },
                                           selected: device.isSelected,
                                           onSelectChanged: (bool? selected) {
                                             context
@@ -532,7 +584,7 @@ class _HomeViewState extends State<HomeView>
                                             ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                  "${result.error}: ${result.message ?? ""}",
+                                                  "${result.error}: ${result.message}",
                                                 ),
                                               ),
                                             );
@@ -565,17 +617,18 @@ class _HomeViewState extends State<HomeView>
                                     path =
                                         "${RouteName.HOME}${RouteName.HOME_LOGS}";
                                     break;
-                                  default:
+                                  case 1:
                                     path =
                                         "${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}";
+                                    break;
+                                  default:
+                                    path =
+                                        "${RouteName.HOME}${RouteName.HOME_BACKUP}";
                                     break;
                                 }
                                 context.push(path);
                               },
-                              tabs: <Widget>[
-                                Tab(text: "Logs"),
-                                Tab(text: "Change info"),
-                              ],
+                              tabs: tabs,
                             ),
                           ),
                           Expanded(

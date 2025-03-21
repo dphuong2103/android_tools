@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:process_run/shell.dart';
 
 class ApkInstaller {
@@ -11,7 +12,7 @@ class ApkInstaller {
   File? getLatestApkFile() {
     final directory = Directory(apkFolderPath);
     if (!directory.existsSync()) {
-      print('❌ APK folder does not exist.');
+      debugPrint('❌ APK folder does not exist.');
       return null;
     }
 
@@ -21,7 +22,7 @@ class ApkInstaller {
         .toList();
 
     if (apkFiles.isEmpty) {
-      print('⚠️ No APK files found in $apkFolderPath');
+      debugPrint('⚠️ No APK files found in $apkFolderPath');
       return null;
     }
 
@@ -40,7 +41,7 @@ class ApkInstaller {
 
       return result.first.exitCode == 0;
     } catch (e) {
-      print('❌ Error copying APK: $e');
+      debugPrint('❌ Error copying APK: $e');
       return false;
     }
   }
@@ -53,7 +54,7 @@ class ApkInstaller {
 
       return result.first.exitCode == 0;
     } catch (e) {
-      print('❌ Error installing APK: $e');
+      debugPrint('❌ Error installing APK: $e');
       return false;
     }
   }
@@ -62,21 +63,21 @@ class ApkInstaller {
   Future<void> autoInstallApk(String deviceIp) async {
     File? apkFile = getLatestApkFile();
     if (apkFile == null) {
-      print('⚠️ No APK file found to install.');
+      debugPrint('⚠️ No APK file found to install.');
       return;
     }
 
     bool copied = await copyApkToDevice(deviceIp, apkFile);
     if (!copied) {
-      print('❌ Failed to copy APK to device.');
+      debugPrint('❌ Failed to copy APK to device.');
       return;
     }
 
     bool installed = await installApkOnDevice(deviceIp, apkFile.uri.pathSegments.last);
     if (installed) {
-      print('✅ APK installed successfully!');
+      debugPrint('✅ APK installed successfully!');
     } else {
-      print('❌ APK installation failed.');
+      debugPrint('❌ APK installation failed.');
     }
   }
 }

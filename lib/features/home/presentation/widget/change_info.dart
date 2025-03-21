@@ -1,3 +1,4 @@
+import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:collection/collection.dart';
@@ -190,8 +191,8 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                   Gap(10),
                   ElevatedButton(
                     onPressed: () {
-                      context.read<HomeCubit>().runCommand(
-                        changeDeviceInfoRandomCommand,
+                      context.read<HomeCubit>().executeCommand(
+                        command: ChangeRandomDeviceInfoCommand(),
                       );
                     },
                     child: Text("Change Random"),

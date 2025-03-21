@@ -19,3 +19,5 @@ CloseApp(packageName)
 SetAlwaysOn(0)
 Recovery
 ChangeDeviceInfoRandom
+
+shell am start -a android.settings.ADD_ACCOUNT_SETTINGS
