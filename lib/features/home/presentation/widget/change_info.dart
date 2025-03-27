@@ -182,8 +182,9 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                         serialNo: _formKey.currentState?.value["serialNo"],
                         fingerprint:
                             _formKey.currentState?.value["fingerprint"],
-                        macSuffix: _formKey.currentState?.value["macSuffix"],
+                        macAddress: _formKey.currentState?.value["macSuffix"],
                         androidId: _formKey.currentState?.value["androidId"],
+                        ssid: _formKey.currentState?.value["ssid"],
                       );
                     },
                     child: Text("Change"),
@@ -191,7 +192,7 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                   Gap(10),
                   ElevatedButton(
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommand(
+                      context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: ChangeRandomDeviceInfoCommand(),
                       );
                     },

@@ -53,7 +53,7 @@ dependencies:
   input_history_text_field: ^0.4.0
   flutter_typeahead: ^5.2.0
   collection: ^1.19.1
-  win32: ^5.11.0
+  win32: ^5.12.0
   confirm_dialog: ^1.0.4
   gap: ^3.0.1
   flutter_localizations:
@@ -66,6 +66,7 @@ dependencies:
   resizable_columns: ^0.0.2
   either_dart: ^1.0.0
   desktop_multi_window: ^0.2.1
+  ffi: ^2.1.4
 
 
 dev_dependencies:

@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:android_tools/core/constant/ssid.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
+import 'package:android_tools/features/home/presentation/widget/change_info.dart';
+import 'package:either_dart/either.dart';
 import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
@@ -31,6 +34,9 @@ class CommandResult {
   }
 }
 
+const changeDeviceBroadcast = "com.midouz.change_phone.SPOOF";
+const changeDevicePackage = "com.midouz.change_phone";
+
 class CommandService {
   final Shell _shell = Shell();
   final LogCubit logCubit = sl();
@@ -50,14 +56,14 @@ class CommandService {
       );
     }
 
-    if (command is ChangeDeviceInfoCommand) {
-      if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _changeDeviceInfo(
-        deviceInfo: command.deviceInfo,
-        serialNumber: serialNumber,
-        packagesToClear: command.packagesToClear,
-      );
-    }
+    // if (command is ChangeDeviceInfoCommand) {
+    //   if (serialNumber == null) throw Exception("Serial Number is null");
+    //   return await _changeDeviceInfo(
+    //     deviceInfo: command.deviceInfo,
+    //     serialNumber: serialNumber,
+    //     packagesToClear: command.packagesToClear,
+    //   );
+    // }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
 
@@ -184,7 +190,7 @@ class CommandService {
         'shell "su -c \'${filePaths.map((path) => 'rm -rf $path').join(' && ')}\'"',
         serialNumber,
       ),
-      PushFileCommand(sourcePath: var source, targetPath: var target) =>
+      PushFileCommand(sourcePath: var source, destinationPath: var target) =>
         _adbCommandWithSerial("push $source $target", serialNumber),
       SetOnGpsCommand(isOn: var isOn) => _adbCommandWithSerial(
         "shell settings put secure location_mode ${isOn ? 3 : 0}",
@@ -226,10 +232,28 @@ class CommandService {
       ),
       PullFileCommand(sourcePath: var source, destinationPath: var target) =>
         _adbCommandWithSerial("pull $source $target", serialNumber),
+      ChangeDeviceInfoCommand(deviceInfo: var deviceInfo) =>
+        _adbCommandWithSerial("""shell am broadcast -a $changeDeviceBroadcast 
+        -p $changeDevicePackage
+        --es model ${deviceInfo.model}
+        --es brand ${deviceInfo.brand}
+        --es manufacturer ${deviceInfo.manufacturer}
+        --es serial ${deviceInfo.serialNo}
+        --es device ${deviceInfo.device}
+        --es product ${deviceInfo.productName}
+        --es release ${deviceInfo.releaseVersion}
+        --es sdk ${deviceInfo.sdkVersion}
+        --es fingerprint ${deviceInfo.fingerprint}
+        --es android_id ${deviceInfo.androidId}
+        --es mac_address ${deviceInfo.macAddress}
+        --es ssid ${deviceInfo.ssid}
+        --es longitude ${deviceInfo}
+      """, serialNumber),
       CustomCommand(command: var cmd) => _adbCommandWithSerial(
         cmd,
         serialNumber,
       ),
+
       //
       _ => throw UnsupportedError('Unknown command'),
     };
@@ -316,26 +340,6 @@ class CommandService {
     );
   }
 
-  Future<CommandResult> openPackage(
-    String packageName, {
-    String? serialNumber,
-  }) async {
-    return await runCommand(
-      command: OpenPackageCommand(packageName),
-      serialNumber: serialNumber,
-    );
-  }
-
-  Future<CommandResult> closePackage(
-    String packageName, {
-    String? serialNumber,
-  }) async {
-    return await runCommand(
-      command: ClosePackageCommand(packageName),
-      serialNumber: serialNumber,
-    );
-  }
-
   Future<List<AdbDevice>> deviceList() async {
     List<AdbDevice> devices = [];
     final adbOutput = await listDevices();
@@ -372,7 +376,7 @@ class CommandService {
     required DeviceInfo deviceInfo,
   }) async {
     logCubit.log(title: "Device Info", message: deviceInfo.toString());
-    var newMac = "00:11:22:33:44:${deviceInfo.macSuffix}";
+    var newMac = deviceInfo.macAddress;
     var content = """#!/system/bin/sh
 
 echo "[INFO] Starting spoof script..."
@@ -516,6 +520,50 @@ echo "[INFO] Spoofing script finished!"
     }
   }
 
+  // Future<CommandResult> _changeDeviceInfoWithLsposed({
+  //   required DeviceInfo deviceInfo,
+  //   required String serialNumber,
+  // }) async {
+  //   var result = await executeMultipleCommandsOn1Device(
+  //     successMessage: "Setup successfully",
+  //     tasks: [
+  //       () => runCommand(
+  //         command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
+  //         serialNumber: serialNumber,
+  //       ),
+  //       () => runCommand(
+  //         command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
+  //         serialNumber: serialNumber,
+  //       ),
+  //     ],
+  //   );
+  //   try {
+  //     // await runCommand(serialNumber: serialNumber, command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo));
+  //     // await runCommand(serialNumber: serialNumber, command: ());
+  //   } catch (e) {}
+  // }
+
+  Future<Command> _clearPhone({required String serialNumber}) async {
+    return await runCommand(
+      command: CustomCommand(
+        command: "shell pm clear com.android.vending",
+      ),
+      serialNumber: serialNumber,
+    );
+  }
+
+  Future<Either<CommandResult, CommandResult>>
+  executeMultipleCommandsOn1Device({
+    required List<Future<CommandResult> Function()> tasks,
+    required String successMessage,
+  }) async {
+    for (var task in tasks) {
+      var result = await task();
+      if (!result.success) return Left(result);
+    }
+    return Right(CommandResult(success: true, message: successMessage));
+  }
+
   DeviceInfo _generateRandomDeviceInfo() {
     final randomDevice =
         deviceInfoList[Random().nextInt(deviceInfoList.length)];
@@ -530,10 +578,31 @@ echo "[INFO] Spoofing script finished!"
       productName: randomDevice.productName,
       releaseVersion: randomDevice.releaseVersion,
       sdkVersion: realSdkVersion,
-      macSuffix: randomDevice.macSuffix,
-      fingerprint: randomDevice.fingerprint,
+      macAddress: _generateRandomMacAddress(),
+      fingerprint: _generateFingerPrint(randomDevice),
       androidId: _generateAndroidId(),
+      ssid: getRandomSSID(),
     );
+  }
+
+  String _generateFingerPrint(DeviceInfo baseDevice) {
+    final Random random = Random();
+    final buildNumber = (random.nextInt(90000) + 10000).toString();
+    final fingerprint =
+        "${baseDevice.brand}/${baseDevice.productName}/${baseDevice.device}:${baseDevice.releaseVersion}/${baseDevice.sdkVersion}/release-keys:user/$buildNumber";
+    return fingerprint;
+  }
+
+  String _generateRandomMacAddress() {
+    final Random rand = Random();
+    final List<int> mac = List.generate(6, (_) => rand.nextInt(256));
+
+    // Ensure locally administered and unicast MAC address
+    mac[0] = (mac[0] & 0xFC) | 0x02;
+
+    return mac
+        .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+        .join(':');
   }
 
   String _generateSerialSuffix(int length) {

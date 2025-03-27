@@ -190,9 +190,9 @@ class RemoveFilesCommand extends Command {
 
 class PushFileCommand extends Command {
   final String sourcePath;
-  final String targetPath;
+  final String destinationPath;
 
-  PushFileCommand(this.sourcePath, this.targetPath);
+  PushFileCommand({required this.sourcePath,required this.destinationPath});
 }
 
 class PullFileCommand extends Command {
@@ -280,4 +280,10 @@ class BackupCommand extends Command {
 
 class ListBackUpFileCommand extends Command {
   const ListBackUpFileCommand();
+}
+
+class RestoreBackupCommand extends Command {
+  final String backupName;
+
+  const RestoreBackupCommand({required this.backupName});
 }

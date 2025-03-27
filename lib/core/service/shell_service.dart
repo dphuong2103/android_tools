@@ -11,7 +11,7 @@ class ShellService {
 
   ShellService({required this.flavor});
 
-  Future<List<void>> runScrcpy(List<Device> devices) async {
+  Future<List<void>> runScrcpy(List<String> serialNumbers) async {
     String scrcpyPath;
     if (flavor == Flavor.PROD) {
       scrcpyPath = p.join(
@@ -39,12 +39,12 @@ class ShellService {
 
     // Run scrcpy for each device serial
     List<Future<void>> tasks =
-        devices.map((device) async {
+        serialNumbers.map((serialNumber) async {
           await Process.run(scrcpyPath, [
             '-s',
-            device.ip,
+            serialNumber,
             '--window-title',
-            device.ip,
+            serialNumber,
           ]);
         }).toList();
 

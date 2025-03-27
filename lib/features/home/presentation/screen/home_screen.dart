@@ -6,6 +6,7 @@ import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/core/sub_window/sub_window.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
+import 'package:android_tools/features/home/domain/entity/device.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -183,7 +184,7 @@ class _HomeViewState extends State<HomeView>
                         }
                       }
 
-                      var adbCommand = context.read<HomeCubit>().parseCommand(
+                      var adbCommand = await context.read<HomeCubit>().parseCommand(
                         command,
                       );
                       if (adbCommand.isLeft) {
@@ -192,7 +193,7 @@ class _HomeViewState extends State<HomeView>
                         );
                         return;
                       }
-                      context.read<HomeCubit>().executeCommand(
+                      context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: adbCommand.right,
                       );
                     },
@@ -274,7 +275,7 @@ class _HomeViewState extends State<HomeView>
                   IconButton(
                     icon: Icon(Icons.arrow_back_ios_new),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommand(
+                      context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: KeyCommand("KEYCODE_BACK"),
                       );
                     },
@@ -283,7 +284,7 @@ class _HomeViewState extends State<HomeView>
                   IconButton(
                     icon: Icon(Icons.home),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommand(
+                      context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: KeyCommand("KEYCODE_HOME"),
                       );
                     },
@@ -292,7 +293,7 @@ class _HomeViewState extends State<HomeView>
                   IconButton(
                     icon: Icon(Icons.menu),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommand(
+                      context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: KeyCommand("KEYCODE_APP_SWITCH"),
                       );
                     },
@@ -392,12 +393,12 @@ class _HomeViewState extends State<HomeView>
                         return;
                       }
 
-                      await context.read<HomeCubit>().executeCommand(
+                      await context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: ChangeTimeZoneCommand(
                           timeZone: timezoneMap[selectedTimeZone]!,
                         ),
                       );
-                      await context.read<HomeCubit>().executeCommand(
+                      await context.read<HomeCubit>().executeCommandForSelectedDevices(
                         command: SetMockLocationCommand(
                           latitude: location['lon']!,
                           longitude: location['lat']!,
@@ -458,6 +459,19 @@ class _HomeViewState extends State<HomeView>
                                       .map(
                                         (device) => DataRow2(
                                           onDoubleTap: () {
+                                            if (device.status !=
+                                                DeviceStatus.connected) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "Device is not connected",
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
                                             openSubWindow(
                                               windowId: device.ip,
                                               subWindow: SubWindow.phoneDetails(

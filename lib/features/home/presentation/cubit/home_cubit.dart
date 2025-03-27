@@ -5,6 +5,7 @@ import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/database_service.dart';
+import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
@@ -96,6 +97,7 @@ class HomeCubit extends Cubit<HomeState> {
   final TextFileService textFileService = sl();
   final LogCubit logCubit = sl();
   final ApkFileService apkFileService = sl();
+  final DirectoryService _directoryService = sl();
 
   Future<void> init() async {
     await getDevices();
@@ -271,7 +273,7 @@ class HomeCubit extends Cubit<HomeState> {
     }).toList();
   }
 
-  Either<String, Command> parseCommand(String command) {
+  Future<Either<String, Command>> parseCommand(String command) async {
     logCubit.log(
       title: "Parse Command: ",
       message: command.isEmpty ? "Empty" : command,
@@ -312,7 +314,6 @@ class HomeCubit extends Cubit<HomeState> {
           type: LogType.ERROR,
         );
         return Left("Invalid package name");
-        ;
       }
       return Right(ClosePackageCommand(packageName));
     }
@@ -408,6 +409,7 @@ class HomeCubit extends Cubit<HomeState> {
 
     if (lowerCaseCommand.startsWith(installApkCommand.toLowerCase())) {
       String? apkName = getValueInsideParentheses(command);
+      String apkPath;
       if (apkName == null || apkName.isEmpty) {
         logCubit.log(
           title: "Error: ",
@@ -416,7 +418,16 @@ class HomeCubit extends Cubit<HomeState> {
         );
         return Left("Invalid apk name");
       }
-      return Right(InstallApkCommand(apkName));
+      if (!await apkFileService.fileExists(apkName)) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Apk $apkName not found",
+          type: LogType.ERROR,
+        );
+        return Left("Apk $apkName not found");
+      }
+      
+      return Right(InstallApkCommand(apkFileService.filePath(apkName)));
     }
 
     if (lowerCaseCommand.startsWith(uninstallAppsCommand.toLowerCase())) {
@@ -657,15 +668,20 @@ class HomeCubit extends Cubit<HomeState> {
     return Left("Invalid command");
   }
 
-  Future<void> executeCommand({required Command command}) async {
+  Future<List<CommandResult>> executeCommand({
+    required Command command,
+    required List<Device> devices,
+  }) async {
     logCubit.log(title: "Run Command: ", message: command.toString());
 
     // Update status to inProgress for selected devices
+    var updatedDeviceSerialNumbers =
+        devices.map((device) => device.ip).toList();
     emit(
       state.copyWith(
         devices:
             state.devices.map((device) {
-              if (device.isSelected) {
+              if (updatedDeviceSerialNumbers.contains(device.ip)) {
                 return device.copyWith(
                   commandStatus: DeviceCommandStatus.inProgress,
                 );
@@ -679,25 +695,13 @@ class HomeCubit extends Cubit<HomeState> {
 
     List<CommandResult> results = [];
     if (command is SetUpCommand) {
-      await setupPhone(deviceSerials: deviceIps);
-      emit(
-        state.copyWith(
-          devices:
-              state.devices.map((device) {
-                if (device.isSelected) {
-                  return device.copyWith(
-                    commandStatus: DeviceCommandStatus.success,
-                  );
-                }
-                return device;
-              }).toList(),
-        ),
+      results = await Future.wait(
+        deviceIps
+            .map((serialNumber) => setUpPhone(serialNumber: serialNumber))
+            .toList(),
       );
-      return;
-    }
-
-    if (command is BackupCommand) {
-      var tasks = await Future.wait(
+    } else if (command is BackupCommand) {
+      results = await Future.wait(
         deviceIps
             .map(
               (serialNumber) => backupPhone(
@@ -707,33 +711,30 @@ class HomeCubit extends Cubit<HomeState> {
             )
             .toList(),
       );
-      emit(
-        state.copyWith(
-          devices:
-              state.devices.map((device) {
-                if (device.isSelected) {
-                  return device.copyWith(
-                    commandStatus: DeviceCommandStatus.success,
-                  );
-                }
-                return device;
-              }).toList(),
-        ),
+    } else if (command is RestoreBackupCommand) {
+      results = await Future.wait(
+        deviceIps
+            .map(
+              (serialNumber) => restorePhone(
+                serialNumber: serialNumber,
+                name: command.backupName,
+              ),
+            )
+            .toList(),
       );
-      return;
-    }
-
-    try {
-      results = await commandService.runCommandOnMultipleDevices(
-        deviceSerials: deviceIps,
-        command: command,
-      );
-    } catch (error) {
-      logCubit.log(
-        title: "Command Error: ",
-        message: error.toString(),
-        type: LogType.ERROR,
-      );
+    } else {
+      try {
+        results = await commandService.runCommandOnMultipleDevices(
+          deviceSerials: deviceIps,
+          command: command,
+        );
+      } catch (error) {
+        logCubit.log(
+          title: "Command Error: ",
+          message: error.toString(),
+          type: LogType.ERROR,
+        );
+      }
     }
 
     emit(
@@ -758,6 +759,8 @@ class HomeCubit extends Cubit<HomeState> {
             }).toList(),
       ),
     );
+
+    return results;
   }
 
   Future<void> showScreen() async {
@@ -781,7 +784,7 @@ class HomeCubit extends Cubit<HomeState> {
       ),
     );
 
-    shellService.runScrcpy(devices);
+    shellService.runScrcpy(devices.map((d) => d.ip).toList());
     emit(
       state.copyWith(
         devices:
@@ -879,21 +882,68 @@ class HomeCubit extends Cubit<HomeState> {
     return apkFileService.fileExists(apkName);
   }
 
-  Future<void> setupPhone({required List<String> deviceSerials}) async {
-    await executeCommand(command: KeyCommand("KEYCODE_HOME"));
-    await executeCommand(command: InstallApkCommand("link2sd"));
-    await executeCommand(command: InstallApkCommand("hide_mock_location"));
-    await executeCommand(command: InstallApkCommand("google_chrome"));
-    await executeCommand(command: InstallApkCommand("device_info"));
-    await executeCommand(command: InstallApkCommand("fake_gps"));
-    await executeCommand(command: SetAlwaysOnCommand(value: 1));
-    await executeCommand(
-      command: SetMockLocationPackageCommand(
-        packageName: defaultLocationMockPackage,
-      ),
+  Future<CommandResult> setUpPhone({required String serialNumber}) async {
+    var result = await executeMultipleCommandsOn1Device(
+      successMessage: "Setup successfully",
+      tasks: [
+        () => commandService.runCommand(
+          command: KeyCommand("KEYCODE_HOME"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: InstallApkCommand("link2sd"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: InstallApkCommand("hide_mock_location"),
+          serialNumber: serialNumber,
+        ),
+        // () => commandService.runCommand(
+        //   command: InstallApkCommand("google_chrome"),
+        //   serialNumber: serialNumber,
+        // ),
+        () => commandService.runCommand(
+          command: InstallApkCommand("device_info"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: InstallApkCommand("fake_gps"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: SetAlwaysOnCommand(value: 1),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: SetMockLocationPackageCommand(
+            packageName: defaultLocationMockPackage,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: SetAlwaysOnCommand(value: 0),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+        ),
+      ],
     );
-    await executeCommand(command: SetAlwaysOnCommand(value: 0));
-    await executeCommand(command: RebootCommand());
+    if (result.isLeft) {
+      return result.left;
+    } else {
+      return CommandResult(
+        success: true,
+        message: "Back up $serialNumber successfully",
+      );
+    }
+  }
+
+  Future<List<CommandResult>> executeCommandForSelectedDevices({
+    required Command command,
+  }) {
+    return executeCommand(command: command, devices: getSelectedDevices());
   }
 
   Future<CommandResult> backupPhone({
@@ -929,6 +979,10 @@ class HomeCubit extends Cubit<HomeState> {
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
+          command: CustomCommand(command: "shell rm -r $backupDir"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
           command: RebootCommand(),
           serialNumber: serialNumber,
         ),
@@ -945,13 +999,63 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
-  // Future<CommandResult> restorePhone({
-  //   required String serialNumber,
-  //   required String name,
-  // }) {
-  //   var currentPath = Directory.current.path;
-  //   final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
-  // }
+  Future<CommandResult> restorePhone({
+    required String serialNumber,
+    required String name,
+  }) async {
+    Directory deviceBackupFolder = _directoryService.getDeviceBackUpFolder(
+      serialNumber: serialNumber,
+      folderName: name,
+    );
+    if (!await deviceBackupFolder.exists()) {
+      return CommandResult(
+        success: false,
+        message: "Backup folder $name not found",
+      );
+    }
+    final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
+    var result = await executeMultipleCommandsOn1Device(
+      successMessage: "Backup successfully",
+      tasks: [
+        () => commandService.runCommand(
+          command: RecoveryCommand(),
+          serialNumber: serialNumber,
+        ),
+        () => waitForTWRP(serialNumber),
+        () => commandService.runCommand(
+          command: PushFileCommand(
+            sourcePath: deviceBackupFolder.path,
+            destinationPath: backupDir,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: CustomCommand(command: "shell twrp wipe dalvik"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: CustomCommand(command: "shell twrp wipe data"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: CustomCommand(command: "shell twrp restore $name"),
+          serialNumber: serialNumber,
+        ),
+        () => commandService.runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+        ),
+      ],
+    );
+    if (result.isLeft) {
+      return result.left;
+    } else {
+      return CommandResult(
+        success: true,
+        message: "Back up $serialNumber successfully",
+      );
+    }
+  }
 
   Future<CommandResult> waitForTWRP(String deviceSerial) async {
     logCubit.log(title: "Waiting for TWRP...", type: LogType.DEBUG);
@@ -1022,6 +1126,63 @@ class HomeCubit extends Cubit<HomeState> {
     } catch (e) {
       return CommandResult(success: false, message: e.toString());
     }
+  }
+
+  List<Device> getSelectedDevices() {
+    return state.devices.where((d) => d.isSelected).toList();
+  }
+
+  Future<void> replayEventFile(String filePath, String serialNumber) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      print("File not found: $filePath");
+      return;
+    }
+
+    List<String> lines = await file.readAsLines();
+    if (lines.isEmpty) {
+      print("Event file is empty.");
+      return;
+    }
+
+    double? lastTimestamp;
+    List<Future<void>> adbCommands = [];
+
+    for (String line in lines) {
+      List<String> parts = line.trim().split(RegExp(r'\s+'));
+
+      if (parts.length < 4 || !parts[0].startsWith('[')) {
+        continue; // Skip invalid lines
+      }
+
+      // Extract timestamp
+      double timestamp =
+          double.tryParse(parts[0].replaceAll(RegExp(r'[\[\]]'), '')) ?? 0;
+      String event = parts.sublist(1).join(' '); // The rest is the event data
+
+      // Calculate delay
+      double delayMs =
+          lastTimestamp != null ? (timestamp - lastTimestamp!) * 1000 : 0;
+      lastTimestamp = timestamp;
+
+      // Schedule event execution
+      adbCommands.add(
+        Future.delayed(Duration(milliseconds: delayMs.round()), () async {
+          String command = 'adb -s $serialNumber shell sendevent $event';
+          print("Running: $command");
+          await Process.run('adb', [
+            '-s',
+            serialNumber,
+            'shell',
+            'sendevent',
+            ...parts.sublist(1),
+          ]);
+        }),
+      );
+    }
+
+    await Future.wait(adbCommands);
+    print("Replay finished!");
   }
 }
 

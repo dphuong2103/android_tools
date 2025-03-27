@@ -50,3 +50,4 @@ rss/
 rss
 *.freezed.dart
 *.g.dart
+/apks/google_chrome.apk
