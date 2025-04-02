@@ -3,18 +3,21 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'adb_device.freezed.dart';
 part 'adb_device.g.dart';
 
-class AdbDeviceStatus{
-  static final String connected = "connected";
-  static final String notConnected = "not_connected";
-  static final String unAuthorized = "unauthorized";
-  static final String fastboot = "fastboot";
+enum DeviceConnectionStatus {
+  fastboot,
+  booted,
+  twrp,
+  recovery,
+  sideload,
+  unknown,
+  notDetected,
 }
 
 @freezed
 class AdbDevice with _$AdbDevice {
   factory AdbDevice({
     required String serialNumber,
-    @Default("not_connected") String? status,
+    @Default(DeviceConnectionStatus.unknown) DeviceConnectionStatus status,
   }) = _AdbDevice;
 
   factory AdbDevice.fromJson(Map<String, dynamic> json) => _$AdbDeviceFromJson(json);

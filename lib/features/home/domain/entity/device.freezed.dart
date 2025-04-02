@@ -22,7 +22,7 @@ Device _$DeviceFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$Device {
   String get ip => throw _privateConstructorUsedError;
-  String? get status => throw _privateConstructorUsedError;
+  DeviceConnectionStatus get status => throw _privateConstructorUsedError;
   bool get isSelected => throw _privateConstructorUsedError;
   String? get commandStatus => throw _privateConstructorUsedError;
   String? get geo => throw _privateConstructorUsedError;
@@ -43,7 +43,7 @@ abstract class $DeviceCopyWith<$Res> {
   @useResult
   $Res call({
     String ip,
-    String? status,
+    DeviceConnectionStatus status,
     bool isSelected,
     String? commandStatus,
     String? geo,
@@ -66,7 +66,7 @@ class _$DeviceCopyWithImpl<$Res, $Val extends Device>
   @override
   $Res call({
     Object? ip = null,
-    Object? status = freezed,
+    Object? status = null,
     Object? isSelected = null,
     Object? commandStatus = freezed,
     Object? geo = freezed,
@@ -79,10 +79,10 @@ class _$DeviceCopyWithImpl<$Res, $Val extends Device>
                     : ip // ignore: cast_nullable_to_non_nullable
                         as String,
             status:
-                freezed == status
+                null == status
                     ? _value.status
                     : status // ignore: cast_nullable_to_non_nullable
-                        as String?,
+                        as DeviceConnectionStatus,
             isSelected:
                 null == isSelected
                     ? _value.isSelected
@@ -114,7 +114,7 @@ abstract class _$$DeviceImplCopyWith<$Res> implements $DeviceCopyWith<$Res> {
   @useResult
   $Res call({
     String ip,
-    String? status,
+    DeviceConnectionStatus status,
     bool isSelected,
     String? commandStatus,
     String? geo,
@@ -136,7 +136,7 @@ class __$$DeviceImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? ip = null,
-    Object? status = freezed,
+    Object? status = null,
     Object? isSelected = null,
     Object? commandStatus = freezed,
     Object? geo = freezed,
@@ -149,10 +149,10 @@ class __$$DeviceImplCopyWithImpl<$Res>
                 : ip // ignore: cast_nullable_to_non_nullable
                     as String,
         status:
-            freezed == status
+            null == status
                 ? _value.status
                 : status // ignore: cast_nullable_to_non_nullable
-                    as String?,
+                    as DeviceConnectionStatus,
         isSelected:
             null == isSelected
                 ? _value.isSelected
@@ -178,7 +178,7 @@ class __$$DeviceImplCopyWithImpl<$Res>
 class _$DeviceImpl implements _Device {
   _$DeviceImpl({
     required this.ip,
-    this.status = "not_connected",
+    this.status = DeviceConnectionStatus.notDetected,
     this.isSelected = false,
     this.commandStatus,
     this.geo,
@@ -191,7 +191,7 @@ class _$DeviceImpl implements _Device {
   final String ip;
   @override
   @JsonKey()
-  final String? status;
+  final DeviceConnectionStatus status;
   @override
   @JsonKey()
   final bool isSelected;
@@ -241,7 +241,7 @@ class _$DeviceImpl implements _Device {
 abstract class _Device implements Device {
   factory _Device({
     required final String ip,
-    final String? status,
+    final DeviceConnectionStatus status,
     final bool isSelected,
     final String? commandStatus,
     final String? geo,
@@ -252,7 +252,7 @@ abstract class _Device implements Device {
   @override
   String get ip;
   @override
-  String? get status;
+  DeviceConnectionStatus get status;
   @override
   bool get isSelected;
   @override

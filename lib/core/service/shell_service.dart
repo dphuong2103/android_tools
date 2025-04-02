@@ -1,6 +1,11 @@
 import 'dart:io';
+import 'package:android_tools/core/logging/log_cubit.dart';
+import 'package:android_tools/core/logging/log_model.dart';
+import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/features/home/domain/entity/device.dart';
+import 'package:android_tools/injection_container.dart';
 import 'package:path/path.dart' as p;
+import 'package:process_run/process_run.dart';
 
 import '../../flavors.dart';
 
@@ -8,10 +13,11 @@ enum ScriptType { backup, restore }
 
 class ShellService {
   Flavor flavor;
+  final LogCubit logCubit;
 
-  ShellService({required this.flavor});
+  ShellService({required this.flavor, required this.logCubit});
 
-  Future<List<void>> runScrcpy(List<String> serialNumbers) async {
+  Future<List<void>> runScrcpyForMultipleDevices(List<String> serialNumbers) async {
     String scrcpyPath;
     if (flavor == Flavor.PROD) {
       scrcpyPath = p.join(
@@ -51,34 +57,104 @@ class ShellService {
     return await Future.wait(tasks);
   }
 
-  Future<void> runHelperScript({
-    required ScriptType scriptType,
-    required Map<String, String> args,
-  }) async {
-    if (scriptType == ScriptType.backup) {
-      if (args['storedBackupPath'] == null) {
-        throw Exception('storedBackupPath is required for backup script');
-      }
-    } else {}
-    String scriptPath;
+
+  Future<CommandResult> runScrcpy(String serialNumber) async {
+    String scrcpyPath;
     if (flavor == Flavor.PROD) {
-      scriptPath = p.join(
+      scrcpyPath = p.join(
         Directory.current.path,
         'dependency',
-        'scripts',
-        '${scriptType == ScriptType.backup ? 'backup_script' : 'restore_script'}.${Platform.isWindows ? 'ps1' : 'sh'}',
+        'scrcpy',
+        Platform.isWindows ? 'scrcpy.exe' : 'scrcpy',
       );
     } else {
-      scriptPath = p.join(
+      scrcpyPath = p.join(
         Directory.current.path,
         'dependency',
-        'scripts',
-        '${scriptType == ScriptType.backup ? 'backup_script' : 'restore_script'}.${Platform.isWindows ? 'ps1' : 'sh'}',
+        Platform.isWindows
+            ? 'scrcpy'
+            : Platform.isMacOS
+            ? 'scrcpy-macos'
+            : 'scrcpy',
+        Platform.isWindows ? 'scrcpy.exe' : 'scrcpy',
       );
     }
+    // Check if scrcpy exists
+    if (!File(scrcpyPath).existsSync()) {
+      throw Exception('scrcpy not found at $scrcpyPath');
+    }
 
-    if (!File(scriptPath).existsSync()) {
-      throw Exception('Script not found not found at $scriptPath');
+    // Run scrcpy for each device serial
+    var process = await Process.run(scrcpyPath, [
+      '-s',
+      serialNumber,
+      '--window-title',
+      serialNumber,
+    ]);
+
+    if (process.exitCode == 0) {
+      return _logSuccess(serialNumber, process.stdout.toString());
+    } else {
+      return _logError(serialNumber, process.stdout.toString(), process.stderr.toString());
     }
   }
+
+
+  bool _isConnectionError(String output) {
+    return output.contains('cannot resolve host') ||
+        output.contains('no such host is known') ||
+        output.contains('failed to respond') ||
+        output.contains('cannot connect');
+  }
+
+  Future<CommandResult> runShell({
+    required Future<List<ProcessResult>> Function() run,
+    String? serialNumber,
+  }) async {
+    try {
+      var result = await run();
+      String output = result.outText.trim();
+
+      if (_isConnectionError(output)) {
+        return _logError(
+          serialNumber,
+          "Connection error detected.",
+          result.errText,
+        );
+      }
+
+      if (result.first.exitCode == 0) {
+        return _logSuccess(serialNumber, output);
+      } else {
+        return _logError(serialNumber, result.outText, result.errText);
+      }
+    } catch (e) {
+      return _logError(serialNumber, "Exception occurred", e.toString());
+    }
+  }
+
+  CommandResult _logError(String? serialNumber, String message, String? error) {
+    logCubit.log(
+      title: "ADB Error for $serialNumber",
+      message: "$message\n$error",
+      type: LogType.ERROR,
+    );
+    return CommandResult(
+      success: false,
+      message: message,
+      error: error,
+      serialNumber: serialNumber,
+    );
+  }
+
+  CommandResult _logSuccess(String? serialNumber, String message) {
+    logCubit.log(title: "ADB Success for $serialNumber", message: message);
+    return CommandResult(
+      success: true,
+      message: message,
+      serialNumber: serialNumber,
+    );
+  }
+
+
 }

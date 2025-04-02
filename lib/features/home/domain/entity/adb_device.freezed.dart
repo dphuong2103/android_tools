@@ -22,7 +22,7 @@ AdbDevice _$AdbDeviceFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$AdbDevice {
   String get serialNumber => throw _privateConstructorUsedError;
-  String? get status => throw _privateConstructorUsedError;
+  DeviceConnectionStatus get status => throw _privateConstructorUsedError;
 
   /// Serializes this AdbDevice to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -39,7 +39,7 @@ abstract class $AdbDeviceCopyWith<$Res> {
   factory $AdbDeviceCopyWith(AdbDevice value, $Res Function(AdbDevice) then) =
       _$AdbDeviceCopyWithImpl<$Res, AdbDevice>;
   @useResult
-  $Res call({String serialNumber, String? status});
+  $Res call({String serialNumber, DeviceConnectionStatus status});
 }
 
 /// @nodoc
@@ -56,7 +56,7 @@ class _$AdbDeviceCopyWithImpl<$Res, $Val extends AdbDevice>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? serialNumber = null, Object? status = freezed}) {
+  $Res call({Object? serialNumber = null, Object? status = null}) {
     return _then(
       _value.copyWith(
             serialNumber:
@@ -65,10 +65,10 @@ class _$AdbDeviceCopyWithImpl<$Res, $Val extends AdbDevice>
                     : serialNumber // ignore: cast_nullable_to_non_nullable
                         as String,
             status:
-                freezed == status
+                null == status
                     ? _value.status
                     : status // ignore: cast_nullable_to_non_nullable
-                        as String?,
+                        as DeviceConnectionStatus,
           )
           as $Val,
     );
@@ -84,7 +84,7 @@ abstract class _$$AdbDeviceImplCopyWith<$Res>
   ) = __$$AdbDeviceImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String serialNumber, String? status});
+  $Res call({String serialNumber, DeviceConnectionStatus status});
 }
 
 /// @nodoc
@@ -100,7 +100,7 @@ class __$$AdbDeviceImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? serialNumber = null, Object? status = freezed}) {
+  $Res call({Object? serialNumber = null, Object? status = null}) {
     return _then(
       _$AdbDeviceImpl(
         serialNumber:
@@ -109,10 +109,10 @@ class __$$AdbDeviceImplCopyWithImpl<$Res>
                 : serialNumber // ignore: cast_nullable_to_non_nullable
                     as String,
         status:
-            freezed == status
+            null == status
                 ? _value.status
                 : status // ignore: cast_nullable_to_non_nullable
-                    as String?,
+                    as DeviceConnectionStatus,
       ),
     );
   }
@@ -121,7 +121,10 @@ class __$$AdbDeviceImplCopyWithImpl<$Res>
 /// @nodoc
 @JsonSerializable()
 class _$AdbDeviceImpl implements _AdbDevice {
-  _$AdbDeviceImpl({required this.serialNumber, this.status = "not_connected"});
+  _$AdbDeviceImpl({
+    required this.serialNumber,
+    this.status = DeviceConnectionStatus.unknown,
+  });
 
   factory _$AdbDeviceImpl.fromJson(Map<String, dynamic> json) =>
       _$$AdbDeviceImplFromJson(json);
@@ -130,7 +133,7 @@ class _$AdbDeviceImpl implements _AdbDevice {
   final String serialNumber;
   @override
   @JsonKey()
-  final String? status;
+  final DeviceConnectionStatus status;
 
   @override
   String toString() {
@@ -168,7 +171,7 @@ class _$AdbDeviceImpl implements _AdbDevice {
 abstract class _AdbDevice implements AdbDevice {
   factory _AdbDevice({
     required final String serialNumber,
-    final String? status,
+    final DeviceConnectionStatus status,
   }) = _$AdbDeviceImpl;
 
   factory _AdbDevice.fromJson(Map<String, dynamic> json) =
@@ -177,7 +180,7 @@ abstract class _AdbDevice implements AdbDevice {
   @override
   String get serialNumber;
   @override
-  String? get status;
+  DeviceConnectionStatus get status;
 
   /// Create a copy of AdbDevice
   /// with the given fields replaced by the non-null parameter values.

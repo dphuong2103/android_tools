@@ -15,15 +15,16 @@ import 'package:get_it/get_it.dart';
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  sl.registerSingleton<LogCubit>(LogCubit());
+
   sl.registerFactory<CommandService>(() => CommandService());
   sl.registerSingleton<DatabaseService>(DatabaseService());
-  sl.registerSingleton<ShellService>(ShellService(flavor: flavor));
+  sl.registerSingleton<ShellService>(ShellService(flavor: flavor, logCubit: sl<LogCubit>()));
   sl.registerSingleton<TextFileService>(TextFileService(flavor: flavor));
   sl.registerSingleton<ApkFileService>(ApkFileService(flavor: flavor));
   sl.registerSingleton<DirectoryService>(DirectoryService());
 
   //Register Cubit
-  sl.registerSingleton<LogCubit>(LogCubit());
   sl.registerSingleton<HomeCubit>(HomeCubit());
   sl.registerFactory<PhoneDetailsCubit>(() => PhoneDetailsCubit());
   sl.registerFactory<EventService>(() => EventService());

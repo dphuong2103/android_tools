@@ -23,6 +23,7 @@ part 'home_cubit.freezed.dart';
 part 'home_state.dart';
 
 const customCommand = "CustomCommand";
+const customAdbCommand = "CustomAdbCommand";
 const rebootCommand = "Reboot";
 const keyCodeCommand = "KEYCODE";
 const openAppCommand = "OpenApp";
@@ -59,7 +60,7 @@ class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(const HomeState());
 
   final List<String> commandList = [
-    customCommand,
+    customAdbCommand,
     rebootCommand,
     keyCodeCommand,
     openAppCommand,
@@ -103,6 +104,12 @@ class HomeCubit extends Cubit<HomeState> {
     await getDevices();
   }
 
+  Map<String, DeviceConnectionStatus> deviceListStatusMap(
+    List<AdbDevice> maps,
+  ) {
+    return Map.fromEntries(maps.map((e) => MapEntry(e.serialNumber, e.status)));
+  }
+
   Future<void> getDevices() async {
     // Fetch device IPs from the database (main list)
     final Database db = await dbService.database;
@@ -110,52 +117,17 @@ class HomeCubit extends Cubit<HomeState> {
     final deviceList = result.map((data) => Device.fromJson(data)).toList();
 
     var adbDeviceList = await commandService.deviceList();
-    var adbDeviceStatusMap = {
-      for (var device in adbDeviceList)
-        device.serialNumber: device.status ?? DeviceStatus.notConnected,
-    };
-
-    var adbGetGeoResult = await commandService.runCommandOnMultipleDevices(
-      deviceSerials:
-          adbDeviceList
-              .where((d) => d.status == AdbDeviceStatus.connected)
-              .map((d) => d.serialNumber)
-              .toList(),
-      command: GetTimeZoneCommand(),
+    Map<String, DeviceConnectionStatus> deviceStatusMap = deviceListStatusMap(
+      adbDeviceList,
     );
-
-    var adbGeoMap = {
-      for (var result in adbGetGeoResult)
-        result.serialNumber: result.success ? result.message : "",
-    };
 
     final updatedDevices =
         deviceList.map((device) {
-          final adbStatus = adbDeviceStatusMap[device.ip];
-          final geoResult = adbGeoMap[device.ip] ?? "";
-          if (adbStatus == AdbDeviceStatus.connected) {
-            return device.copyWith(
-              status: DeviceStatus.connected,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.unAuthorized) {
-            return device.copyWith(
-              status: DeviceStatus.unAuthorized,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.fastboot) {
-            return device.copyWith(
-              status: DeviceStatus.fastboot,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.notConnected) {
-            return device.copyWith(
-              status: DeviceStatus.notConnected,
-              geo: geoResult,
-            );
-          } else {
-            return device.copyWith(status: adbStatus, geo: geoResult);
-          }
+          return device.copyWith(
+            status:
+                deviceStatusMap[device.ip] ??
+                DeviceConnectionStatus.notDetected
+          );
         }).toList();
 
     // Emit the updated device list with their statuses
@@ -164,58 +136,23 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> refresh() async {
     emit(state.copyWith(isRefreshing: true));
-    var devices = state.devices;
-    if (devices.isEmpty) {
+    var deviceList = state.devices;
+    if (deviceList.isEmpty) {
       return;
     }
 
     var adbDeviceList = await commandService.deviceList();
-    var adbDeviceStatusMap = {
-      for (var device in adbDeviceList)
-        device.serialNumber: device.status ?? DeviceStatus.notConnected,
-    };
-
-    var adbGetGeoResult = await commandService.runCommandOnMultipleDevices(
-      deviceSerials:
-          adbDeviceList
-              .where((d) => d.status == AdbDeviceStatus.connected)
-              .map((d) => d.serialNumber)
-              .toList(),
-      command: GetTimeZoneCommand(),
+    Map<String, DeviceConnectionStatus> deviceStatusMap = deviceListStatusMap(
+      adbDeviceList,
     );
 
-    var adbGeoMap = {
-      for (var result in adbGetGeoResult)
-        result.serialNumber: result.success ? result.message : "",
-    };
-
     final updatedDevices =
-        devices.map((device) {
-          final adbStatus = adbDeviceStatusMap[device.ip];
-          final geoResult = adbGeoMap[device.ip] ?? "";
-          if (adbStatus == AdbDeviceStatus.connected) {
-            return device.copyWith(
-              status: DeviceStatus.connected,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.unAuthorized) {
-            return device.copyWith(
-              status: DeviceStatus.unAuthorized,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.fastboot) {
-            return device.copyWith(
-              status: DeviceStatus.fastboot,
-              geo: geoResult,
-            );
-          } else if (adbStatus == AdbDeviceStatus.notConnected) {
-            return device.copyWith(
-              status: DeviceStatus.notConnected,
-              geo: geoResult,
-            );
-          } else {
-            return device.copyWith(status: adbStatus, geo: geoResult);
-          }
+        deviceList.map((device) {
+          return device.copyWith(
+            status:
+            deviceStatusMap[device.ip] ??
+                DeviceConnectionStatus.notDetected
+          );
         }).toList();
 
     emit(state.copyWith(isRefreshing: false, devices: updatedDevices));
@@ -626,7 +563,7 @@ class HomeCubit extends Cubit<HomeState> {
       return Right(InputTextCommand(text: text));
     }
 
-    if (lowerCaseCommand.startsWith(customCommand.toLowerCase())) {
+    if (lowerCaseCommand.startsWith(customAdbCommand.toLowerCase())) {
       String? customCommand = getValueInsideParentheses(command);
       if (customCommand == null || customCommand.isEmpty) {
         logCubit.log(
@@ -637,6 +574,19 @@ class HomeCubit extends Cubit<HomeState> {
         return Left("Invalid command");
       }
       return Right(CustomAdbCommand(command: customCommand));
+    }
+
+    if (lowerCaseCommand.startsWith(customCommand.toLowerCase())) {
+      String? customCommand = getValueInsideParentheses(command);
+      if (customCommand == null || customCommand.isEmpty) {
+        logCubit.log(
+          title: "Error: ",
+          message: "Invalid command",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid command");
+      }
+      return Right(CustomCommand(command: customCommand));
     }
 
     if (lowerCaseCommand.startsWith(openChPlayWithUrlCommand.toLowerCase())) {
@@ -797,7 +747,7 @@ class HomeCubit extends Cubit<HomeState> {
       ),
     );
 
-    shellService.runScrcpy(devices.map((d) => d.ip).toList());
+    shellService.runScrcpyForMultipleDevices(devices.map((d) => d.ip).toList());
     emit(
       state.copyWith(
         devices:

@@ -102,44 +102,6 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
     emit(state.copyWith(backUpFolders: newBackUpFolders));
   }
 
-  void embedScrcpy(String scrcpyTitle) async {
-    // Step 1: Start scrcpy process with the given title
-    var shellService = ShellService(flavor: flavor);
-    shellService.runScrcpy([scrcpyTitle]).then((process) async {
-      await Future.delayed(Duration(seconds: 2)); // Wait for Scrcpy to open
-
-      // Step 2: Find scrcpy window handle using the given title
-      final hwndScrcpy = FindWindow(nullptr, scrcpyTitle.toNativeUtf16());
-
-      if (hwndScrcpy == 0) {
-        print("Scrcpy window with title '$scrcpyTitle' not found!");
-        return;
-      }
-
-      // Step 3: Find the Flutter window handle (Assuming the main Flutter window is active)
-      final hwndFlutter = GetForegroundWindow();
-
-      if (hwndFlutter == 0) {
-        print("Flutter window not found!");
-        return;
-      }
-
-      // Step 4: Reparent scrcpy to Flutter window
-      SetParent(hwndScrcpy, hwndFlutter);
-
-      // Step 5: Resize scrcpy window to fit inside Flutter
-      SetWindowPos(
-        hwndScrcpy,
-        0,
-        50,
-        50,
-        800,
-        600,
-        SWP_NOZORDER | SWP_SHOWWINDOW,
-      );
-      print("Scrcpy with title '$scrcpyTitle' embedded successfully!");
-    });
-  }
 
   Future<void> startRecordingEvents({
     required String serialNumber,

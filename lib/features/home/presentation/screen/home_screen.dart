@@ -5,8 +5,8 @@ import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/core/sub_window/sub_window.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
+import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/domain/entity/device.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -401,18 +401,6 @@ class _HomeViewState extends State<HomeView>
                         return;
                       }
 
-                      // await context.read<HomeCubit>().executeCommandForSelectedDevices(
-                      //   command: ChangeTimeZoneCommand(
-                      //     timeZone: timezoneMap[selectedTimeZone]!,
-                      //   ),
-                      // );
-                      // await context.read<HomeCubit>().executeCommandForSelectedDevices(
-                      //   command: SetMockLocationCommand(
-                      //     latitude: location['lon']!,
-                      //     longitude: location['lat']!,
-                      //   ),
-                      // );
-
                       await context
                           .read<HomeCubit>()
                           .executeCommandForSelectedDevices(
@@ -478,15 +466,20 @@ class _HomeViewState extends State<HomeView>
                                         (device) => DataRow2(
                                           onDoubleTap: () {
                                             debugPrint(
-                                              "device.status${device.status}",
-                                            );
-                                            debugPrint(
-                                              "DeviceStatus.fastboot ${DeviceStatus.fastboot}",
+                                              device.status.toString(),
                                             );
                                             if (device.status !=
-                                                    DeviceStatus.connected &&
+                                                    DeviceConnectionStatus
+                                                        .booted &&
                                                 device.status !=
-                                                    DeviceStatus.fastboot) {
+                                                    DeviceConnectionStatus
+                                                        .fastboot &&
+                                                device.status !=
+                                                    DeviceConnectionStatus
+                                                        .recovery &&
+                                                device.status !=
+                                                    DeviceConnectionStatus
+                                                        .twrp) {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -517,7 +510,31 @@ class _HomeViewState extends State<HomeView>
                                           },
                                           cells: [
                                             DataCell(Text(device.ip)),
-                                            DataCell(Text(device.status ?? "")),
+                                            DataCell(
+                                              Text(
+                                                device.status ==
+                                                        DeviceConnectionStatus
+                                                            .booted
+                                                    ? "Booted"
+                                                    : device.status ==
+                                                        DeviceConnectionStatus
+                                                            .fastboot
+                                                    ? "Fastboot"
+                                                    : device.status ==
+                                                        DeviceConnectionStatus
+                                                            .recovery
+                                                    ? "Recovery"
+                                                    : device.status ==
+                                                        DeviceConnectionStatus
+                                                            .twrp
+                                                    ? "TWRP"
+                                                    : device.status ==
+                                                        DeviceConnectionStatus
+                                                            .sideload
+                                                    ? "Sideload"
+                                                    : "Not connected",
+                                              ),
+                                            ),
                                             DataCell(
                                               Text(
                                                 (device.geo != null &&

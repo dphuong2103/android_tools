@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:android_tools/core/constant/ssid.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
+import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
@@ -11,6 +12,7 @@ import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/home/presentation/widget/change_info.dart';
 import 'package:either_dart/either.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
@@ -45,6 +47,7 @@ const changeDevicePackage = "com.midouz.change_phone";
 class CommandService {
   final Shell _shell = Shell();
   final LogCubit logCubit = sl();
+  final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
 
   Future<CommandResult> runCommand({
@@ -70,12 +73,9 @@ class CommandService {
       );
     }
 
-    if(command is ChangeGeoCommand){
-      if(serialNumber == null) throw Exception("Serial Number is null");
-      return await _changeGeo(
-        command: command,
-        serialNumber: serialNumber,
-      );
+    if (command is ChangeGeoCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return await _changeGeo(command: command, serialNumber: serialNumber);
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -85,27 +85,10 @@ class CommandService {
       message: fullCommand,
       type: LogType.DEBUG,
     );
-
-    try {
-      var result = await _shell.run(fullCommand);
-      String output = result.outText.trim();
-
-      if (_isConnectionError(output)) {
-        return _logError(
-          serialNumber,
-          "Connection error detected.",
-          result.errText,
-        );
-      }
-
-      if (result.first.exitCode == 0) {
-        return _logSuccess(serialNumber, output);
-      } else {
-        return _logError(serialNumber, result.outText, result.errText);
-      }
-    } catch (e) {
-      return _logError(serialNumber, "Exception occurred", e.toString());
-    }
+    return _shellService.runShell(
+      serialNumber: serialNumber,
+      run: () => _shell.run(fullCommand),
+    );
   }
 
   String _buildCommand(Command command, String? serialNumber, int port) {
@@ -346,59 +329,6 @@ class CommandService {
     );
   }
 
-  Future<List<AdbDevice>> deviceList() async {
-    List<AdbDevice> devices = [];
-    final adbOutput = await runCommand(command: ListDevicesCommand());
-
-    for (var line in adbOutput.message.split('\n')) {
-      if (line.contains('\t')) {
-        final parts = line.split('\t');
-        if (parts.length == 2) {
-          final serialNumber = parts[0].split(":")[0];
-          final status = parts[1];
-
-          devices.add(
-            AdbDevice(
-              serialNumber: serialNumber,
-              status:
-                  status == "device"
-                      ? AdbDeviceStatus.connected
-                      : AdbDeviceStatus.unAuthorized,
-            ),
-          );
-        }
-      }
-    }
-
-    final fastbootOutput = await runCommand(
-      command: CustomCommand(command: "fastboot devices"),
-    );
-    for (var line in fastbootOutput.message.split('\n')) {
-      if (line.contains('\t')) {
-        final parts = line.split('\t');
-        if (parts.length == 2) {
-          final serialNumber = parts[0].split(":")[0];
-          final status = parts[1];
-
-          devices.add(
-            AdbDevice(
-              serialNumber: serialNumber,
-              status:
-                  status.trim() == AdbDeviceStatus.fastboot
-                      ? AdbDeviceStatus.fastboot
-                      : status.trim(),
-            ),
-          );
-        }
-      }
-    }
-    logCubit.log(
-      title: "Device List",
-      message: "Found ${devices.length} devices",
-    );
-    return devices;
-  }
-
   Future<String?> _buildAndPushChangeInfoScript({
     required String serialNumber,
     required DeviceInfo deviceInfo,
@@ -570,18 +500,7 @@ echo "[INFO] Spoofing script finished!"
   Future<CommandResult> flashRom({required String serialNumber}) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () => runCommand(
-          command: RebootBootLoaderCommand(),
-          serialNumber: serialNumber,
-        ),
-        () => waitForFastboot(serialNumber),
-        () => runCommand(
-          command: CustomCommand(
-            command:
-                "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
-          ),
-        ),
-        () => waitForTWRP(serialNumber),
+        () => _bootTwrp(serialNumber: serialNumber),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
           serialNumber: serialNumber,
@@ -630,25 +549,23 @@ echo "[INFO] Spoofing script finished!"
   Future<CommandResult> flashMagisk({required String serialNumber}) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () =>
-            runCommand(command: RecoveryCommand(), serialNumber: serialNumber),
-        () => waitForTWRP(serialNumber),
+        () => _bootTwrp(serialNumber: serialNumber),
         () => runCommand(
           command: PushFileCommand(
             sourcePath:
-                "${Directory.current.path}/file/setup/magisk/magisk.zip",
-            destinationPath: "/sdcard/magisk.zip",
+                "${Directory.current.path}/file/setup/magisk/magisk-latest.zip",
+            destinationPath: "/sdcard/magisk-latest.zip",
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: CustomAdbCommand(
-            command: "shell twrp install /sdcard/magisk.zip",
+            command: "shell twrp install /sdcard/magisk-latest.zip",
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
-          command: CustomAdbCommand(command: "shell rm -rf /sdcard/magisk.zip"),
+          command: CustomAdbCommand(command: "shell rm -rf /sdcard/magisk-latest.zip"),
           serialNumber: serialNumber,
         ),
         () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
@@ -802,9 +719,7 @@ echo "[INFO] Spoofing script finished!"
   Future<CommandResult> flashGApp({required String serialNumber}) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () =>
-            runCommand(command: RecoveryCommand(), serialNumber: serialNumber),
-        () => waitForTWRP(serialNumber),
+        () => _bootTwrp(serialNumber: serialNumber),
         () => runCommand(
           command: PushFileCommand(
             sourcePath:
@@ -940,7 +855,10 @@ echo "[INFO] Spoofing script finished!"
     return result.isLeft ? result.left : result.right;
   }
 
-  Future<CommandResult> _changeGeo({required String serialNumber, required ChangeGeoCommand command}) async {
+  Future<CommandResult> _changeGeo({
+    required String serialNumber,
+    required ChangeGeoCommand command,
+  }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
@@ -1047,5 +965,268 @@ echo "[INFO] Spoofing script finished!"
       serialNumber: serialNumber,
     );
     return result.isLeft ? result.left : result.right;
+  }
+
+  Future<DeviceConnectionStatus> checkPhoneStatus(String deviceSerial) async {
+    logCubit.log(title: "Checking phone status...", type: LogType.DEBUG);
+
+    try {
+      // Check Fastboot status first
+      ProcessResult fastbootResult = await Process.run('fastboot', [
+        '-s',
+        deviceSerial,
+        'devices',
+      ], runInShell: true);
+
+      if (fastbootResult.stdout.toString().contains(deviceSerial)) {
+        logCubit.log(title: "Fastboot mode detected...", type: LogType.DEBUG);
+        return DeviceConnectionStatus.fastboot;
+      }
+
+      // Check ADB status
+      ProcessResult adbDevices = await Process.run('adb', [
+        'devices',
+      ], runInShell: true);
+
+      if (!adbDevices.stdout.toString().contains(deviceSerial)) {
+        logCubit.log(title: "Device not detected...", type: LogType.DEBUG);
+        return DeviceConnectionStatus.notDetected;
+      }
+
+      // Get device state via ADB
+      ProcessResult stateResult = await Process.run('adb', [
+        '-s',
+        deviceSerial,
+        'get-state',
+      ], runInShell: true);
+
+      String state = stateResult.stdout.toString().trim();
+
+      switch (state) {
+        case 'device':
+          // Check if fully booted
+          ProcessResult bootResult = await Process.run('adb', [
+            '-s',
+            deviceSerial,
+            'shell',
+            'getprop sys.boot_completed',
+          ], runInShell: true);
+
+          if (bootResult.stdout.toString().trim() == '1') {
+            logCubit.log(title: "Phone fully booted...", type: LogType.DEBUG);
+            return DeviceConnectionStatus.booted;
+          }
+          break;
+
+        case 'recovery':
+          // Check for TWRP specifically
+          ProcessResult twrpResult = await Process.run('adb', [
+            '-s',
+            deviceSerial,
+            'shell',
+            'ls /sbin',
+          ], runInShell: true);
+
+          if (twrpResult.stdout.toString().contains('twrp')) {
+            logCubit.log(
+              title: "TWRP recovery detected...",
+              type: LogType.DEBUG,
+            );
+            return DeviceConnectionStatus.twrp;
+          } else {
+            logCubit.log(
+              title: "Generic recovery detected...",
+              type: LogType.DEBUG,
+            );
+            return DeviceConnectionStatus.recovery;
+          }
+
+        case 'sideload':
+          logCubit.log(title: "Sideload mode detected...", type: LogType.DEBUG);
+          return DeviceConnectionStatus.sideload;
+
+        default:
+          logCubit.log(
+            title: "Unknown state detected...",
+            message: state,
+            type: LogType.DEBUG,
+          );
+          return DeviceConnectionStatus.unknown;
+      }
+    } catch (e) {
+      logCubit.log(
+        title: "Status Check Error...",
+        message: e.toString(),
+        type: LogType.DEBUG,
+      );
+      return DeviceConnectionStatus.notDetected;
+    }
+
+    // Fallback if no specific state is determined
+    logCubit.log(title: "Unable to determine status...", type: LogType.DEBUG);
+    return DeviceConnectionStatus.notDetected;
+  }
+
+  Future<List<AdbDevice>> deviceList() async {
+    List<AdbDevice> devices = [];
+
+    // Check ADB devices (includes booted, recovery, sideload states)
+    final adbOutput = await runCommand(command: ListDevicesCommand());
+    devices.addAll(await _parseAdbDevices(adbOutput.message));
+
+    // Check Fastboot devices
+    final fastbootOutput = await runCommand(
+      command: CustomCommand(command: "fastboot devices"),
+    );
+    devices.addAll(_parseFastbootDevices(fastbootOutput.message));
+
+    logCubit.log(
+      title: "Device List",
+      message: "Found ${devices.length} devices",
+    );
+    return devices;
+  }
+
+  // Helper function to parse ADB output and determine detailed status
+  Future<List<AdbDevice>> _parseAdbDevices(String output) async {
+    final devices = <AdbDevice>[];
+
+    for (var line in output.split('\n')) {
+      if (line.contains('\t')) {
+        final parts = line.trim().split('\t');
+        if (parts.length == 2) {
+          final serialNumber = parts[0].split(":")[0];
+          final state = parts[1].trim();
+
+          DeviceConnectionStatus status;
+          switch (state) {
+            case 'device':
+              // Check if fully booted
+              final bootResult = await Process.run('adb', [
+                '-s',
+                serialNumber,
+                'shell',
+                'getprop sys.boot_completed',
+              ], runInShell: true);
+              status =
+                  bootResult.stdout.toString().trim() == '1'
+                      ? DeviceConnectionStatus.booted
+                      : DeviceConnectionStatus.unknown;
+              break;
+
+            case 'recovery':
+              // Check for TWRP specifically
+              final twrpResult = await Process.run('adb', [
+                '-s',
+                serialNumber,
+                'shell',
+                'ls /sbin',
+              ], runInShell: true);
+              status =
+                  twrpResult.stdout.toString().contains('twrp')
+                      ? DeviceConnectionStatus.twrp
+                      : DeviceConnectionStatus.recovery;
+              break;
+
+            case 'sideload':
+              status = DeviceConnectionStatus.sideload;
+              break;
+
+            case 'unauthorized':
+              status = DeviceConnectionStatus.notDetected;
+              break;
+
+            default:
+              status = DeviceConnectionStatus.unknown;
+              logCubit.log(
+                title: "Unknown ADB state",
+                message: "Serial: $serialNumber, State: $state",
+                type: LogType.DEBUG,
+              );
+          }
+
+          devices.add(AdbDevice(serialNumber: serialNumber, status: status));
+        }
+      }
+    }
+    return devices;
+  }
+
+  // Helper function to parse Fastboot output
+  List<AdbDevice> _parseFastbootDevices(String output) {
+    final devices = <AdbDevice>[];
+
+    for (var line in output.split('\n')) {
+      if (line.trim().isNotEmpty && line.contains('\t')) {
+        final parts = line.trim().split('\t');
+        if (parts.isNotEmpty) {
+          final serialNumber = parts[0].split(":")[0];
+          devices.add(
+            AdbDevice(
+              serialNumber: serialNumber,
+              status: DeviceConnectionStatus.fastboot,
+            ),
+          );
+        }
+      }
+    }
+    return devices;
+  }
+
+  Future<CommandResult> _bootTwrp({required String serialNumber}) async {
+    var phoneStatus = await checkPhoneStatus(serialNumber);
+    switch (phoneStatus) {
+      case DeviceConnectionStatus.booted:
+      case DeviceConnectionStatus.sideload:
+        var result = await executeMultipleCommandsOn1Device(
+          tasks: [
+            () => runCommand(
+              command: RebootBootLoaderCommand(),
+              serialNumber: serialNumber,
+            ),
+            () => waitForFastboot(serialNumber),
+            () => runCommand(
+              command: CustomCommand(
+                command:
+                    "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
+              ),
+            ),
+            () => waitForTWRP(serialNumber),
+          ],
+          successMessage: "Phone boot to twrp",
+          serialNumber: serialNumber,
+        );
+        return result.isLeft ? result.left : result.right;
+      case DeviceConnectionStatus.fastboot:
+        var result = await executeMultipleCommandsOn1Device(
+          tasks: [
+            () => runCommand(
+              command: CustomCommand(
+                command:
+                    "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
+              ),
+            ),
+            () => waitForTWRP(serialNumber),
+          ],
+          successMessage: "Phone boot to twrp",
+          serialNumber: serialNumber,
+        );
+        return result.isLeft ? result.left : result.right;
+
+      case DeviceConnectionStatus.notDetected:
+      case DeviceConnectionStatus.unknown:
+        return CommandResult(
+          success: false,
+          message: "Phone status: ${phoneStatus.toString()}",
+          serialNumber: serialNumber,
+        );
+      case DeviceConnectionStatus.twrp:
+      case DeviceConnectionStatus.recovery:
+        return CommandResult(
+          success: true,
+          message: "Phone already in twrp",
+          serialNumber: serialNumber,
+        );
+    }
   }
 }

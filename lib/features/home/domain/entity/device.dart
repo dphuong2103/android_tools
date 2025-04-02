@@ -1,15 +1,9 @@
+import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'device.freezed.dart';
 
 part 'device.g.dart';
-
-class DeviceStatus {
-  static final String connected = "connected";
-  static final String notConnected = "not_connected";
-  static final String unAuthorized = "unauthorized";
-  static final String fastboot = "fastboot";
-}
 
 class DeviceCommandStatus {
   static final String inProgress = "In Progress";
@@ -21,7 +15,7 @@ class DeviceCommandStatus {
 class Device with _$Device {
   factory Device({
     required String ip,
-    @Default("not_connected") String? status,
+    @Default(DeviceConnectionStatus.notDetected) DeviceConnectionStatus status,
     @Default(false) bool isSelected,
     String? commandStatus,
     String? geo,

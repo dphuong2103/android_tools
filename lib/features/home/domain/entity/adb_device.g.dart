@@ -9,11 +9,26 @@ part of 'adb_device.dart';
 _$AdbDeviceImpl _$$AdbDeviceImplFromJson(Map<String, dynamic> json) =>
     _$AdbDeviceImpl(
       serialNumber: json['serialNumber'] as String,
-      status: json['status'] as String? ?? "not_connected",
+      status:
+          $enumDecodeNullable(
+            _$DeviceConnectionStatusEnumMap,
+            json['status'],
+          ) ??
+          DeviceConnectionStatus.unknown,
     );
 
 Map<String, dynamic> _$$AdbDeviceImplToJson(_$AdbDeviceImpl instance) =>
     <String, dynamic>{
       'serialNumber': instance.serialNumber,
-      'status': instance.status,
+      'status': _$DeviceConnectionStatusEnumMap[instance.status]!,
     };
+
+const _$DeviceConnectionStatusEnumMap = {
+  DeviceConnectionStatus.fastboot: 'fastboot',
+  DeviceConnectionStatus.booted: 'booted',
+  DeviceConnectionStatus.twrp: 'twrp',
+  DeviceConnectionStatus.recovery: 'recovery',
+  DeviceConnectionStatus.sideload: 'sideload',
+  DeviceConnectionStatus.unknown: 'unknown',
+  DeviceConnectionStatus.notDetected: 'notDetected',
+};
