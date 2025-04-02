@@ -184,18 +184,20 @@ class _HomeViewState extends State<HomeView>
                         }
                       }
 
-                      var adbCommand = await context.read<HomeCubit>().parseCommand(
-                        command,
-                      );
+                      var adbCommand = await context
+                          .read<HomeCubit>()
+                          .parseCommand(command);
                       if (adbCommand.isLeft) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(adbCommand.left)),
                         );
                         return;
                       }
-                      context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: adbCommand.right,
-                      );
+                      context
+                          .read<HomeCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: adbCommand.right,
+                          );
                     },
                     child: Text("Run"),
                   ),
@@ -275,27 +277,33 @@ class _HomeViewState extends State<HomeView>
                   IconButton(
                     icon: Icon(Icons.arrow_back_ios_new),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: KeyCommand("KEYCODE_BACK"),
-                      );
+                      context
+                          .read<HomeCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: KeyCommand("KEYCODE_BACK"),
+                          );
                     },
                   ),
                   Gap(2),
                   IconButton(
                     icon: Icon(Icons.home),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: KeyCommand("KEYCODE_HOME"),
-                      );
+                      context
+                          .read<HomeCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: KeyCommand("KEYCODE_HOME"),
+                          );
                     },
                   ),
                   Gap(2),
                   IconButton(
                     icon: Icon(Icons.menu),
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: KeyCommand("KEYCODE_APP_SWITCH"),
-                      );
+                      context
+                          .read<HomeCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: KeyCommand("KEYCODE_APP_SWITCH"),
+                          );
                     },
                   ),
                   Gap(2),
@@ -393,17 +401,27 @@ class _HomeViewState extends State<HomeView>
                         return;
                       }
 
-                      await context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: ChangeTimeZoneCommand(
-                          timeZone: timezoneMap[selectedTimeZone]!,
-                        ),
-                      );
-                      await context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: SetMockLocationCommand(
-                          latitude: location['lon']!,
-                          longitude: location['lat']!,
-                        ),
-                      );
+                      // await context.read<HomeCubit>().executeCommandForSelectedDevices(
+                      //   command: ChangeTimeZoneCommand(
+                      //     timeZone: timezoneMap[selectedTimeZone]!,
+                      //   ),
+                      // );
+                      // await context.read<HomeCubit>().executeCommandForSelectedDevices(
+                      //   command: SetMockLocationCommand(
+                      //     latitude: location['lon']!,
+                      //     longitude: location['lat']!,
+                      //   ),
+                      // );
+
+                      await context
+                          .read<HomeCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: ChangeGeoCommand(
+                              latitude: location['lat']!,
+                              longitude: location['lon']!,
+                              timeZone: timezoneMap[selectedTimeZone]!,
+                            ),
+                          );
                     },
                     child: Text("Change Geo"),
                   ),
@@ -459,8 +477,16 @@ class _HomeViewState extends State<HomeView>
                                       .map(
                                         (device) => DataRow2(
                                           onDoubleTap: () {
+                                            debugPrint(
+                                              "device.status${device.status}",
+                                            );
+                                            debugPrint(
+                                              "DeviceStatus.fastboot ${DeviceStatus.fastboot}",
+                                            );
                                             if (device.status !=
-                                                DeviceStatus.connected) {
+                                                    DeviceStatus.connected &&
+                                                device.status !=
+                                                    DeviceStatus.fastboot) {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(

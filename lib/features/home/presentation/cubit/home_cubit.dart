@@ -143,11 +143,18 @@ class HomeCubit extends Cubit<HomeState> {
               status: DeviceStatus.unAuthorized,
               geo: geoResult,
             );
-          } else {
+          } else if (adbStatus == AdbDeviceStatus.fastboot) {
+            return device.copyWith(
+              status: DeviceStatus.fastboot,
+              geo: geoResult,
+            );
+          } else if (adbStatus == AdbDeviceStatus.notConnected) {
             return device.copyWith(
               status: DeviceStatus.notConnected,
               geo: geoResult,
             );
+          } else {
+            return device.copyWith(status: adbStatus, geo: geoResult);
           }
         }).toList();
 
@@ -196,11 +203,18 @@ class HomeCubit extends Cubit<HomeState> {
               status: DeviceStatus.unAuthorized,
               geo: geoResult,
             );
-          } else {
+          } else if (adbStatus == AdbDeviceStatus.fastboot) {
+            return device.copyWith(
+              status: DeviceStatus.fastboot,
+              geo: geoResult,
+            );
+          } else if (adbStatus == AdbDeviceStatus.notConnected) {
             return device.copyWith(
               status: DeviceStatus.notConnected,
               geo: geoResult,
             );
+          } else {
+            return device.copyWith(status: adbStatus, geo: geoResult);
           }
         }).toList();
 
@@ -409,7 +423,6 @@ class HomeCubit extends Cubit<HomeState> {
 
     if (lowerCaseCommand.startsWith(installApkCommand.toLowerCase())) {
       String? apkName = getValueInsideParentheses(command);
-      String apkPath;
       if (apkName == null || apkName.isEmpty) {
         logCubit.log(
           title: "Error: ",
@@ -426,8 +439,8 @@ class HomeCubit extends Cubit<HomeState> {
         );
         return Left("Apk $apkName not found");
       }
-      
-      return Right(InstallApkCommand(apkFileService.filePath(apkName)));
+
+      return Right(InstallApkCommand(apkName));
     }
 
     if (lowerCaseCommand.startsWith(uninstallAppsCommand.toLowerCase())) {
@@ -623,7 +636,7 @@ class HomeCubit extends Cubit<HomeState> {
         );
         return Left("Invalid command");
       }
-      return Right(CustomCommand(command: customCommand));
+      return Right(CustomAdbCommand(command: customCommand));
     }
 
     if (lowerCaseCommand.startsWith(openChPlayWithUrlCommand.toLowerCase())) {
@@ -962,7 +975,7 @@ class HomeCubit extends Cubit<HomeState> {
         ),
         () => waitForTWRP(serialNumber),
         () => commandService.runCommand(
-          command: CustomCommand(
+          command: CustomAdbCommand(
             command: "-s $serialNumber shell twrp backup BDE '$name'",
           ),
           serialNumber: serialNumber,
@@ -979,7 +992,7 @@ class HomeCubit extends Cubit<HomeState> {
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
-          command: CustomCommand(command: "shell rm -r $backupDir"),
+          command: CustomAdbCommand(command: "shell rm -r $backupDir"),
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
@@ -1030,15 +1043,15 @@ class HomeCubit extends Cubit<HomeState> {
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
-          command: CustomCommand(command: "shell twrp wipe dalvik"),
+          command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
-          command: CustomCommand(command: "shell twrp wipe data"),
+          command: CustomAdbCommand(command: "shell twrp wipe data"),
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(
-          command: CustomCommand(command: "shell twrp restore $name"),
+          command: CustomAdbCommand(command: "shell twrp restore $name"),
           serialNumber: serialNumber,
         ),
         () => commandService.runCommand(

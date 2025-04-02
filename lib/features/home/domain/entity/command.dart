@@ -101,12 +101,12 @@ class SwipeCommand extends Command {
 }
 
 class InstallApkCommand extends Command {
-  final String apkPath;
+  final String apkName;
 
-  const InstallApkCommand(this.apkPath);
+  const InstallApkCommand(this.apkName);
 
   @override
-  String toString() => 'InstallApkCommand(apkPath: $apkPath)';
+  String toString() => 'InstallApkCommand(apkName: $apkName)';
 }
 
 class UninstallAppsCommand extends Command {
@@ -192,7 +192,7 @@ class PushFileCommand extends Command {
   final String sourcePath;
   final String destinationPath;
 
-  PushFileCommand({required this.sourcePath,required this.destinationPath});
+  PushFileCommand({required this.sourcePath, required this.destinationPath});
 }
 
 class PullFileCommand extends Command {
@@ -242,6 +242,12 @@ class InputTextCommand extends Command {
   const InputTextCommand({required this.text});
 }
 
+class CustomAdbCommand extends Command {
+  final String command;
+
+  const CustomAdbCommand({required this.command});
+}
+
 class CustomCommand extends Command {
   final String command;
 
@@ -286,4 +292,16 @@ class RestoreBackupCommand extends Command {
   final String backupName;
 
   const RestoreBackupCommand({required this.backupName});
+}
+
+class ChangeGeoCommand extends Command {
+  final double latitude;
+  final double longitude;
+  final String timeZone;
+
+  const ChangeGeoCommand({
+    required this.latitude,
+    required this.longitude,
+    required this.timeZone,
+  });
 }

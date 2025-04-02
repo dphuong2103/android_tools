@@ -227,4 +227,28 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
       debugPrint("Error replaying events: $e");
     }
   }
+
+  Future<CommandResult> flashRom({required String serialNumber}) async {
+    return await _commandService.flashRom(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> flashMagisk({required String serialNumber}) async {
+    return await _commandService.flashMagisk(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> installApks({required String serialNumber}) async{
+    return await _commandService.installInitApks(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult>  flashGApp({required String serialNumber}) async{
+    return await _commandService.flashGApp(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> flashTwrp({required String serialNumber}) async {
+    return await _commandService.flashTwrp(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> installEdXposed({required String serialNumber})async {
+    return await _commandService.installEdXposed(serialNumber: serialNumber);
+  }
 }

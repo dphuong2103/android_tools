@@ -1,3 +1,4 @@
+import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/util/date_util.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
 import 'package:android_tools/core/widget/sub_window_widget.dart';
@@ -10,6 +11,7 @@ import 'package:collection/collection.dart';
 import 'package:confirm_dialog/confirm_dialog.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
@@ -65,12 +67,29 @@ class PhoneDetailsView extends StatefulWidget {
   State<PhoneDetailsView> createState() => _PhoneDetailsViewState();
 }
 
+enum SetUpPhoneOption { FlashRom, FlaskGApp, InstallMagisk, InstallApp, FlashTwrp, InstallEdXposed }
+
+Map<SetUpPhoneOption, String> setUpPhoneOptionLabels = {
+  SetUpPhoneOption.FlashRom: "1. Flash Rom",
+  SetUpPhoneOption.FlaskGApp: "2. Flask GApp",
+  SetUpPhoneOption.InstallMagisk: "3. Install Magisk",
+  SetUpPhoneOption.InstallEdXposed: "4. Install EdXposed",
+  SetUpPhoneOption.InstallApp: "5. Install Apps",
+  SetUpPhoneOption.FlashTwrp: "Flash TWRP",
+};
+
 class _PhoneDetailsViewState extends State<PhoneDetailsView>
     with SingleTickerProviderStateMixin {
-  final tabs = <Widget>[Tab(text: "RSS"), Tab(text: "Script")];
+  final tabs = <Widget>[
+    Tab(text: "RSS"),
+    Tab(text: "Script"),
+    Tab(text: "Setup"),
+  ];
   late final TextEditingController eventsScriptController;
   late final TextEditingController replayEventsScriptController;
   late final TabController tabController;
+  String? status;
+  var setupPhoneOption = SetUpPhoneOption.FlashRom;
 
   @override
   void initState() {
@@ -344,6 +363,80 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                       ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        DropdownButton2<SetUpPhoneOption>(
+                          items: _buildSetupPhoneOption(),
+                          onChanged: (value) {
+                            setState(() {
+                              setupPhoneOption = value!;
+                            });
+                          },
+                          value: setupPhoneOption,
+                        ),
+                        Gap(10),
+                        ElevatedButton(
+                          onPressed: () async {
+                            setState(() {
+                              status = "Executing...";
+                            });
+                            CommandResult result;
+                            switch (setupPhoneOption) {
+                              case SetUpPhoneOption.FlashRom:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .flashRom(serialNumber: widget.device.ip);
+                                break;
+                              case SetUpPhoneOption.InstallMagisk:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .flashMagisk(
+                                      serialNumber: widget.device.ip,
+                                    );
+                                break;
+                              case SetUpPhoneOption.InstallApp:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .installApks(
+                                      serialNumber: widget.device.ip,
+                                    );
+                                break;
+                              case SetUpPhoneOption.FlaskGApp:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .flashGApp(serialNumber: widget.device.ip);
+                              case SetUpPhoneOption.FlashTwrp:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .flashTwrp(serialNumber: widget.device.ip);
+                              case SetUpPhoneOption.InstallEdXposed:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .installEdXposed(
+                                      serialNumber: widget.device.ip,
+                                    );
+                                break;
+                            }
+                            if (result.success) {
+                              setState(() {
+                                status = "Success";
+                              });
+                            }else{
+                              setState(() {
+                                status = "${result.error} ${result.message}";
+                              });
+                            }
+                          },
+                          child: Text("Execute"),
+                        ),
+                        Gap(10),
+                        if(status != null)
+                          Text(status!),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -351,5 +444,18 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
         );
       },
     );
+  }
+
+  List<DropdownMenuItem<SetUpPhoneOption>> _buildSetupPhoneOption() {
+    return setUpPhoneOptionLabels.entries.map((entry) {
+      return DropdownMenuItem<SetUpPhoneOption>(
+        value: entry.key,
+        child: Text(
+          entry.value,
+          style: const TextStyle(fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList();
   }
 }

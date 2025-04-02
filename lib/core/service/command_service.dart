@@ -3,15 +3,19 @@ import 'dart:math';
 
 import 'package:android_tools/core/constant/ssid.dart';
 import 'package:android_tools/core/logging/log_model.dart';
+import 'package:android_tools/core/service/apk_file_service.dart';
+import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
+import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/home/presentation/widget/change_info.dart';
 import 'package:either_dart/either.dart';
 import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import '../../../../injection_container.dart';
+import 'package:path/path.dart' as p;
 
 class CommandResult {
   final String? serialNumber;
@@ -34,12 +38,14 @@ class CommandResult {
   }
 }
 
-const changeDeviceBroadcast = "com.midouz.change_phone.SPOOF";
+const changeDeviceBroadcast = "com.midouz.change_phone.SET_SPOOF";
+const changeGeoBroadcast = "com.midouz.change_phone.SET_GEO";
 const changeDevicePackage = "com.midouz.change_phone";
 
 class CommandService {
   final Shell _shell = Shell();
   final LogCubit logCubit = sl();
+  final ApkFileService _apkFileService = sl();
 
   Future<CommandResult> runCommand({
     required Command command,
@@ -48,22 +54,29 @@ class CommandService {
   }) async {
     if (command is ChangeRandomDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      var deviceInfo = _generateRandomDeviceInfo();
-      return await _changeDeviceInfo(
+      var deviceInfo = generateRandomDeviceInfo();
+      return await _changeDeviceInfoOld(
         deviceInfo: deviceInfo,
         serialNumber: serialNumber,
         packagesToClear: command.packagesToClear,
       );
     }
 
-    // if (command is ChangeDeviceInfoCommand) {
-    //   if (serialNumber == null) throw Exception("Serial Number is null");
-    //   return await _changeDeviceInfo(
-    //     deviceInfo: command.deviceInfo,
-    //     serialNumber: serialNumber,
-    //     packagesToClear: command.packagesToClear,
-    //   );
-    // }
+    if (command is ChangeDeviceInfoCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return await _changeDeviceInfo(
+        deviceInfo: command.deviceInfo,
+        serialNumber: serialNumber,
+      );
+    }
+
+    if(command is ChangeGeoCommand){
+      if(serialNumber == null) throw Exception("Serial Number is null");
+      return await _changeGeo(
+        command: command,
+        serialNumber: serialNumber,
+      );
+    }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
 
@@ -138,8 +151,8 @@ class CommandService {
           'shell input swipe $sx $sy $ex $ey $dur',
           serialNumber,
         ),
-      InstallApkCommand(apkPath: var path) => _adbCommandWithSerial(
-        "install \"$path\"",
+      InstallApkCommand(apkName: var apkName) => _adbCommandWithSerial(
+        "install \"${_apkFileService.filePath(apkName)}\"",
         serialNumber,
       ),
       UninstallAppsCommand(packages: var packages) => packages
@@ -233,28 +246,25 @@ class CommandService {
       PullFileCommand(sourcePath: var source, destinationPath: var target) =>
         _adbCommandWithSerial("pull $source $target", serialNumber),
       ChangeDeviceInfoCommand(deviceInfo: var deviceInfo) =>
-        _adbCommandWithSerial("""shell am broadcast -a $changeDeviceBroadcast 
-        -p $changeDevicePackage
-        --es model ${deviceInfo.model}
-        --es brand ${deviceInfo.brand}
-        --es manufacturer ${deviceInfo.manufacturer}
-        --es serial ${deviceInfo.serialNo}
-        --es device ${deviceInfo.device}
-        --es product ${deviceInfo.productName}
-        --es release ${deviceInfo.releaseVersion}
-        --es sdk ${deviceInfo.sdkVersion}
-        --es fingerprint ${deviceInfo.fingerprint}
-        --es android_id ${deviceInfo.androidId}
-        --es mac_address ${deviceInfo.macAddress}
-        --es ssid ${deviceInfo.ssid}
-        --es longitude ${deviceInfo}
-      """, serialNumber),
-      CustomCommand(command: var cmd) => _adbCommandWithSerial(
+        "${_adbCommandWithSerial(_buildChangeDeviceBroadcastCommand(deviceInfo), serialNumber)} && ${_buildCommand(ClosePackageCommand(changeDevicePackage), serialNumber, port)} && ${_buildCommand(CustomAdbCommand(command: "shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity"), serialNumber, port)}",
+      CustomAdbCommand(command: var cmd) => _adbCommandWithSerial(
         cmd,
         serialNumber,
       ),
-
-      //
+      CustomCommand(command: var cmd) => cmd,
+      ChangeGeoCommand(
+        latitude: var latitude,
+        longitude: var longitude,
+        timeZone: var timeZone,
+      ) =>
+        _adbCommandWithSerial(
+          _buildChangeGeoBroadcast(
+            latitude: latitude,
+            longitude: longitude,
+            timeZone: timeZone,
+          ),
+          serialNumber,
+        ),
       _ => throw UnsupportedError('Unknown command'),
     };
   }
@@ -268,7 +278,7 @@ class CommandService {
 
   CommandResult _logError(String? serialNumber, String message, String? error) {
     logCubit.log(
-      title: "ADB Error",
+      title: "ADB Error for $serialNumber",
       message: "$message\n$error",
       type: LogType.ERROR,
     );
@@ -281,7 +291,7 @@ class CommandService {
   }
 
   CommandResult _logSuccess(String? serialNumber, String message) {
-    logCubit.log(title: "ADB Success", message: message);
+    logCubit.log(title: "ADB Success for $serialNumber", message: message);
     return CommandResult(
       success: true,
       message: message,
@@ -293,10 +303,6 @@ class CommandService {
     return serialNumber != null
         ? 'adb -s $serialNumber $command'
         : 'adb $command';
-  }
-
-  Future<CommandResult> listDevices() async {
-    return await runCommand(command: ListDevicesCommand());
   }
 
   Future<CommandResult> runShellCommand(
@@ -342,7 +348,7 @@ class CommandService {
 
   Future<List<AdbDevice>> deviceList() async {
     List<AdbDevice> devices = [];
-    final adbOutput = await listDevices();
+    final adbOutput = await runCommand(command: ListDevicesCommand());
 
     for (var line in adbOutput.message.split('\n')) {
       if (line.contains('\t')) {
@@ -364,6 +370,28 @@ class CommandService {
       }
     }
 
+    final fastbootOutput = await runCommand(
+      command: CustomCommand(command: "fastboot devices"),
+    );
+    for (var line in fastbootOutput.message.split('\n')) {
+      if (line.contains('\t')) {
+        final parts = line.split('\t');
+        if (parts.length == 2) {
+          final serialNumber = parts[0].split(":")[0];
+          final status = parts[1];
+
+          devices.add(
+            AdbDevice(
+              serialNumber: serialNumber,
+              status:
+                  status.trim() == AdbDeviceStatus.fastboot
+                      ? AdbDeviceStatus.fastboot
+                      : status.trim(),
+            ),
+          );
+        }
+      }
+    }
     logCubit.log(
       title: "Device List",
       message: "Found ${devices.length} devices",
@@ -457,7 +485,7 @@ echo "[INFO] Spoofing script finished!"
     }
   }
 
-  Future<CommandResult> _changeDeviceInfo({
+  Future<CommandResult> _changeDeviceInfoOld({
     List<String>? packagesToClear,
     required DeviceInfo deviceInfo,
     required String serialNumber,
@@ -520,111 +548,504 @@ echo "[INFO] Spoofing script finished!"
     }
   }
 
-  // Future<CommandResult> _changeDeviceInfoWithLsposed({
-  //   required DeviceInfo deviceInfo,
-  //   required String serialNumber,
-  // }) async {
-  //   var result = await executeMultipleCommandsOn1Device(
-  //     successMessage: "Setup successfully",
-  //     tasks: [
-  //       () => runCommand(
-  //         command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
-  //         serialNumber: serialNumber,
-  //       ),
-  //       () => runCommand(
-  //         command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
-  //         serialNumber: serialNumber,
-  //       ),
-  //     ],
-  //   );
-  //   try {
-  //     // await runCommand(serialNumber: serialNumber, command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo));
-  //     // await runCommand(serialNumber: serialNumber, command: ());
-  //   } catch (e) {}
-  // }
-
-  Future<Command> _clearPhone({required String serialNumber}) async {
-    return await runCommand(
-      command: CustomCommand(
-        command: "shell pm clear com.android.vending",
-      ),
-      serialNumber: serialNumber,
-    );
-  }
-
   Future<Either<CommandResult, CommandResult>>
   executeMultipleCommandsOn1Device({
     required List<Future<CommandResult> Function()> tasks,
     required String successMessage,
+    required String serialNumber,
   }) async {
     for (var task in tasks) {
       var result = await task();
       if (!result.success) return Left(result);
     }
-    return Right(CommandResult(success: true, message: successMessage));
-  }
-
-  DeviceInfo _generateRandomDeviceInfo() {
-    final randomDevice =
-        deviceInfoList[Random().nextInt(deviceInfoList.length)];
-    const realSdkVersion = "29"; // Set to your Mi A1’s actual SDK (28 or 29)
-    return DeviceInfo(
-      model: randomDevice.model,
-      brand: randomDevice.brand,
-      manufacturer: randomDevice.manufacturer,
-      serialNo:
-          "${randomDevice.serialNo.split(RegExp(r'\d+'))[0]}${_generateSerialSuffix(6)}",
-      device: randomDevice.device,
-      productName: randomDevice.productName,
-      releaseVersion: randomDevice.releaseVersion,
-      sdkVersion: realSdkVersion,
-      macAddress: _generateRandomMacAddress(),
-      fingerprint: _generateFingerPrint(randomDevice),
-      androidId: _generateAndroidId(),
-      ssid: getRandomSSID(),
-    );
-  }
-
-  String _generateFingerPrint(DeviceInfo baseDevice) {
-    final Random random = Random();
-    final buildNumber = (random.nextInt(90000) + 10000).toString();
-    final fingerprint =
-        "${baseDevice.brand}/${baseDevice.productName}/${baseDevice.device}:${baseDevice.releaseVersion}/${baseDevice.sdkVersion}/release-keys:user/$buildNumber";
-    return fingerprint;
-  }
-
-  String _generateRandomMacAddress() {
-    final Random rand = Random();
-    final List<int> mac = List.generate(6, (_) => rand.nextInt(256));
-
-    // Ensure locally administered and unicast MAC address
-    mac[0] = (mac[0] & 0xFC) | 0x02;
-
-    return mac
-        .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-        .join(':');
-  }
-
-  String _generateSerialSuffix(int length) {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    final random = Random();
-    return String.fromCharCodes(
-      Iterable.generate(
-        length,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+    return Right(
+      CommandResult(
+        success: true,
+        message: successMessage,
+        serialNumber: serialNumber,
       ),
     );
   }
 
-  String _generateAndroidId() {
-    // Android ID is a 16-character hex string
-    const chars = '0123456789abcdef';
-    final random = Random();
-    return String.fromCharCodes(
-      Iterable.generate(
-        16,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
+  Future<CommandResult> flashRom({required String serialNumber}) async {
+    var results = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: RebootBootLoaderCommand(),
+          serialNumber: serialNumber,
+        ),
+        () => waitForFastboot(serialNumber),
+        () => runCommand(
+          command: CustomCommand(
+            command:
+                "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
+          ),
+        ),
+        () => waitForTWRP(serialNumber),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell twrp wipe data"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell twrp wipe system"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: "${Directory.current.path}/file/setup/rom/rom.zip",
+            destinationPath: "/sdcard/rom.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell twrp install /sdcard/rom.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell rm -rf /sdcard/rom.zip"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+      ],
+      successMessage: "Rom flash successfully",
+      serialNumber: serialNumber,
     );
+    if (results.isLeft) {
+      return results.left;
+    } else {
+      return results.right;
+    }
+  }
+
+  Future<CommandResult> flashMagisk({required String serialNumber}) async {
+    var results = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () =>
+            runCommand(command: RecoveryCommand(), serialNumber: serialNumber),
+        () => waitForTWRP(serialNumber),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath:
+                "${Directory.current.path}/file/setup/magisk/magisk.zip",
+            destinationPath: "/sdcard/magisk.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell twrp install /sdcard/magisk.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell rm -rf /sdcard/magisk.zip"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => waitForPhoneBoot(serialNumber),
+      ],
+      successMessage: "Flask magisk successfully",
+      serialNumber: serialNumber,
+    );
+
+    return results.isLeft ? results.left : results.right;
+  }
+
+  Future<CommandResult> waitForTWRP(String deviceSerial) async {
+    logCubit.log(title: "Waiting for TWRP...", type: LogType.DEBUG);
+    int i = 0;
+    while (i <= 100) {
+      try {
+        // Execute the ADB command to check for TWRP
+        ProcessResult result = await Process.run('adb', [
+          '-s',
+          deviceSerial,
+          'shell',
+          'ls /sbin',
+        ], runInShell: true);
+
+        // Check if 'twrp' appears in the output
+        if (result.stdout.toString().contains('twrp')) {
+          logCubit.log(title: "TWRP detected...", type: LogType.DEBUG);
+          return CommandResult(success: true, message: "TWRP detected");
+        } else {
+          // Get device state
+          ProcessResult stateResult = await Process.run('adb', [
+            '-s',
+            deviceSerial,
+            'get-state',
+          ], runInShell: true);
+          await Future.delayed(Duration(seconds: 2));
+        }
+      } catch (e) {
+        logCubit.log(
+          title: "Open TWRP Error...",
+          message: e.toString(),
+          type: LogType.DEBUG,
+        );
+        return CommandResult(success: false, message: "TWRP not detected");
+      }
+      await Future.delayed(Duration(seconds: 2));
+      i++;
+    }
+    return CommandResult(success: false, message: "TWRP not detected");
+  }
+
+  Future<CommandResult> waitForFastboot(String deviceSerial) async {
+    logCubit.log(title: "Waiting for Fastboot...", type: LogType.DEBUG);
+    int i = 0;
+    while (i <= 100) {
+      try {
+        // Execute the Fastboot command to check if the device is connected
+        ProcessResult result = await Process.run('fastboot', [
+          'devices',
+        ], runInShell: true);
+
+        // Check if the device serial appears in the output
+        if (result.stdout.toString().contains(deviceSerial)) {
+          logCubit.log(title: "Fastboot detected...", type: LogType.DEBUG);
+          return CommandResult(success: true, message: "Fastboot detected");
+        }
+      } catch (e) {
+        logCubit.log(
+          title: "Fastboot Error...",
+          message: e.toString(),
+          type: LogType.DEBUG,
+        );
+        return CommandResult(success: false, message: "Fastboot not detected");
+      }
+
+      await Future.delayed(Duration(seconds: 2));
+      i++;
+    }
+    return CommandResult(
+      success: false,
+      message: "Fastboot not detected after timeout",
+    );
+  }
+
+  Future<CommandResult> waitForPhoneBoot(String deviceSerial) async {
+    logCubit.log(title: "Waiting for phone to boot...", type: LogType.DEBUG);
+    int i = 0;
+    while (i <= 100) {
+      try {
+        // Check device state first
+        ProcessResult stateResult = await Process.run('adb', [
+          '-s',
+          deviceSerial,
+          'get-state',
+        ], runInShell: true);
+
+        // If device is in 'device' state (fully booted)
+        if (stateResult.stdout.toString().trim() == 'device') {
+          // Additional check to ensure system is ready
+          ProcessResult bootResult = await Process.run('adb', [
+            '-s',
+            deviceSerial,
+            'shell',
+            'getprop sys.boot_completed',
+          ], runInShell: true);
+
+          if (bootResult.stdout.toString().trim() == '1') {
+            logCubit.log(title: "Phone fully booted...", type: LogType.DEBUG);
+            return CommandResult(
+              success: true,
+              message: "Phone is fully booted",
+            );
+          }
+        }
+
+        await Future.delayed(Duration(seconds: 2));
+      } catch (e) {
+        logCubit.log(
+          title: "Phone Boot Check Error...",
+          message: e.toString(),
+          type: LogType.DEBUG,
+        );
+        // Don't return failure yet, let it retry
+      }
+      await Future.delayed(Duration(seconds: 2));
+      i++;
+    }
+    return CommandResult(success: false, message: "Phone boot timeout");
+  }
+
+  Future<CommandResult> installInitApks({required String serialNumber}) async {
+    var results = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: InstallApkCommand("device_info"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: InstallApkCommand("link2sd"),
+          serialNumber: serialNumber,
+        ),
+      ],
+      serialNumber: serialNumber,
+      successMessage: "Init apks installed successfully",
+    );
+
+    return results.isLeft ? results.left : results.right;
+  }
+
+  Future<CommandResult> flashGApp({required String serialNumber}) async {
+    var results = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () =>
+            runCommand(command: RecoveryCommand(), serialNumber: serialNumber),
+        () => waitForTWRP(serialNumber),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath:
+                "${Directory.current.path}/file/setup/rom/open_gapp_pico.zip",
+            destinationPath: "/sdcard/gapp.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell twrp install /sdcard/gapp.zip",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(command: "shell rm -rf /sdcard/gapp.zip"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => waitForPhoneBoot(serialNumber),
+      ],
+      serialNumber: serialNumber,
+      successMessage: "Init apks installed successfully",
+    );
+
+    return results.isLeft ? results.left : results.right;
+  }
+
+  String _formatBroadcastValue(String value) {
+    // Check if value contains spaces
+    if (value.contains(' ')) {
+      // Escape spaces with backslash and wrap in quotes
+      return '"${value.replaceAll(' ', '\\ ')}"';
+    }
+    // Just wrap in quotes if no spaces
+    return '"$value"';
+  }
+
+  String _buildChangeDeviceBroadcastCommand(DeviceInfo deviceInfo) {
+    // Build the command using a StringBuffer for efficiency
+    final buffer = StringBuffer(
+      'shell am broadcast -a $changeDeviceBroadcast -p $changeDevicePackage',
+    );
+
+    buffer.write(' --es model ${_formatBroadcastValue(deviceInfo.model)}');
+    buffer.write(' --es brand ${_formatBroadcastValue(deviceInfo.brand)}');
+    buffer.write(
+      ' --es manufacturer ${_formatBroadcastValue(deviceInfo.manufacturer)}',
+    );
+    buffer.write(' --es serial ${_formatBroadcastValue(deviceInfo.serialNo)}');
+    buffer.write(' --es device ${_formatBroadcastValue(deviceInfo.device)}');
+    buffer.write(
+      ' --es product ${_formatBroadcastValue(deviceInfo.productName)}',
+    );
+    buffer.write(
+      ' --es release ${_formatBroadcastValue(deviceInfo.releaseVersion)}',
+    );
+    buffer.write(' --es sdk ${_formatBroadcastValue(deviceInfo.sdkVersion)}');
+    buffer.write(
+      ' --es fingerprint ${_formatBroadcastValue(deviceInfo.fingerprint)}',
+    );
+    buffer.write(
+      ' --es android_id ${_formatBroadcastValue(deviceInfo.androidId)}',
+    );
+
+    buffer.write(' --es imei ${_formatBroadcastValue(deviceInfo.imei)}');
+
+    // Handle optional fields
+    if (deviceInfo.macAddress != null) {
+      buffer.write(
+        ' --es mac_address ${_formatBroadcastValue(deviceInfo.macAddress!)}',
+      );
+    }
+    if (deviceInfo.ssid != null) {
+      buffer.write(' --es ssid ${_formatBroadcastValue(deviceInfo.ssid!)}');
+    }
+    if (deviceInfo.advertisingId != null) {
+      buffer.write(
+        ' --es ad_id ${_formatBroadcastValue(deviceInfo.advertisingId!)}',
+      );
+    }
+
+    if (deviceInfo.width != null && deviceInfo.height != null) {
+      buffer.write(' --es width ${deviceInfo.width}');
+      buffer.write(' --es height ${deviceInfo.height}');
+    }
+
+    return buffer.toString();
+  }
+
+  String _buildChangeGeoBroadcast({
+    required double longitude,
+    required double latitude,
+    required String timeZone,
+  }) {
+    final buffer = StringBuffer(
+      'shell am broadcast -a $changeGeoBroadcast -p $changeDevicePackage',
+    );
+    buffer.write(' --es longitude "$longitude"');
+    buffer.write(' --es latitude "$latitude"');
+    buffer.write(' --es time_zone "$timeZone"');
+    return buffer.toString();
+  }
+
+  Future<CommandResult> _changeDeviceInfo({
+    required String serialNumber,
+    required DeviceInfo deviceInfo,
+  }) async {
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: _buildChangeDeviceBroadcastCommand(deviceInfo),
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: ClosePackageCommand(changeDevicePackage),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomCommand(
+            command:
+                "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
+          ),
+          serialNumber: serialNumber,
+        ),
+      ],
+      successMessage: "Change device info successfully",
+      serialNumber: serialNumber,
+    );
+
+    return result.isLeft ? result.left : result.right;
+  }
+
+  Future<CommandResult> _changeGeo({required String serialNumber, required ChangeGeoCommand command}) async {
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: _buildChangeGeoBroadcast(
+              latitude: command.latitude,
+              longitude: command.longitude,
+              timeZone: command.timeZone,
+            ),
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: ClosePackageCommand(changeDevicePackage),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomCommand(
+            command:
+                "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
+          ),
+          serialNumber: serialNumber,
+        ),
+      ],
+      successMessage: "Change geo info successfully",
+      serialNumber: serialNumber,
+    );
+
+    return result.isLeft ? result.left : result.right;
+  }
+
+  Future<CommandResult> flashTwrp({required String serialNumber}) async {
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => waitForFastboot(serialNumber),
+        () => runCommand(
+          command: CustomCommand(
+            command:
+                "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
+          ),
+        ),
+      ],
+      successMessage: "Flash twrp successfully",
+      serialNumber: serialNumber,
+    );
+    return result.isLeft ? result.left : result.right;
+  }
+
+  Future<CommandResult> installEdXposed({required String serialNumber}) async {
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: p.join(
+              Directory.current.path,
+              "file",
+              "setup",
+              "edxposed",
+            ),
+            destinationPath: "/sdcard",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: p.join(
+              Directory.current.path,
+              "file",
+              "setup",
+              "scripts",
+              "install_edxposed.sh",
+            ),
+            destinationPath: "/data/local/tmp/",
+          ),
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell chmod +x /data/local/tmp/install_edxposed.sh",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell /data/local/tmp/install_edxposed.sh",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              "/data/local/tmp/install_edxposed.sh",
+              "/sdcard/edxposed",
+            ],
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: InstallApkCommand("edxposed-manager"),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+      ],
+      successMessage: "Install edxposed successfully",
+      serialNumber: serialNumber,
+    );
+    return result.isLeft ? result.left : result.right;
   }
 }

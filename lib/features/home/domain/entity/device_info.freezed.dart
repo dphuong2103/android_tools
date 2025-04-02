@@ -29,12 +29,14 @@ mixin _$DeviceInfo {
   String get productName => throw _privateConstructorUsedError;
   String get releaseVersion => throw _privateConstructorUsedError;
   String get sdkVersion => throw _privateConstructorUsedError;
-  String? get macAddress => throw _privateConstructorUsedError;
   String get fingerprint => throw _privateConstructorUsedError;
   String get androidId => throw _privateConstructorUsedError;
+  String get imei => throw _privateConstructorUsedError;
+  String? get advertisingId => throw _privateConstructorUsedError;
   String? get ssid => throw _privateConstructorUsedError;
-  String? get longitude => throw _privateConstructorUsedError;
-  String? get latitude => throw _privateConstructorUsedError;
+  String? get macAddress => throw _privateConstructorUsedError;
+  int? get height => throw _privateConstructorUsedError;
+  int? get width => throw _privateConstructorUsedError;
 
   /// Serializes this DeviceInfo to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -62,12 +64,14 @@ abstract class $DeviceInfoCopyWith<$Res> {
     String productName,
     String releaseVersion,
     String sdkVersion,
-    String? macAddress,
     String fingerprint,
     String androidId,
+    String imei,
+    String? advertisingId,
     String? ssid,
-    String? longitude,
-    String? latitude,
+    String? macAddress,
+    int? height,
+    int? width,
   });
 }
 
@@ -94,12 +98,14 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
     Object? productName = null,
     Object? releaseVersion = null,
     Object? sdkVersion = null,
-    Object? macAddress = freezed,
     Object? fingerprint = null,
     Object? androidId = null,
+    Object? imei = null,
+    Object? advertisingId = freezed,
     Object? ssid = freezed,
-    Object? longitude = freezed,
-    Object? latitude = freezed,
+    Object? macAddress = freezed,
+    Object? height = freezed,
+    Object? width = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -143,11 +149,6 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
                     ? _value.sdkVersion
                     : sdkVersion // ignore: cast_nullable_to_non_nullable
                         as String,
-            macAddress:
-                freezed == macAddress
-                    ? _value.macAddress
-                    : macAddress // ignore: cast_nullable_to_non_nullable
-                        as String?,
             fingerprint:
                 null == fingerprint
                     ? _value.fingerprint
@@ -158,21 +159,36 @@ class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
                     ? _value.androidId
                     : androidId // ignore: cast_nullable_to_non_nullable
                         as String,
+            imei:
+                null == imei
+                    ? _value.imei
+                    : imei // ignore: cast_nullable_to_non_nullable
+                        as String,
+            advertisingId:
+                freezed == advertisingId
+                    ? _value.advertisingId
+                    : advertisingId // ignore: cast_nullable_to_non_nullable
+                        as String?,
             ssid:
                 freezed == ssid
                     ? _value.ssid
                     : ssid // ignore: cast_nullable_to_non_nullable
                         as String?,
-            longitude:
-                freezed == longitude
-                    ? _value.longitude
-                    : longitude // ignore: cast_nullable_to_non_nullable
+            macAddress:
+                freezed == macAddress
+                    ? _value.macAddress
+                    : macAddress // ignore: cast_nullable_to_non_nullable
                         as String?,
-            latitude:
-                freezed == latitude
-                    ? _value.latitude
-                    : latitude // ignore: cast_nullable_to_non_nullable
-                        as String?,
+            height:
+                freezed == height
+                    ? _value.height
+                    : height // ignore: cast_nullable_to_non_nullable
+                        as int?,
+            width:
+                freezed == width
+                    ? _value.width
+                    : width // ignore: cast_nullable_to_non_nullable
+                        as int?,
           )
           as $Val,
     );
@@ -197,12 +213,14 @@ abstract class _$$DeviceInfoImplCopyWith<$Res>
     String productName,
     String releaseVersion,
     String sdkVersion,
-    String? macAddress,
     String fingerprint,
     String androidId,
+    String imei,
+    String? advertisingId,
     String? ssid,
-    String? longitude,
-    String? latitude,
+    String? macAddress,
+    int? height,
+    int? width,
   });
 }
 
@@ -228,12 +246,14 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
     Object? productName = null,
     Object? releaseVersion = null,
     Object? sdkVersion = null,
-    Object? macAddress = freezed,
     Object? fingerprint = null,
     Object? androidId = null,
+    Object? imei = null,
+    Object? advertisingId = freezed,
     Object? ssid = freezed,
-    Object? longitude = freezed,
-    Object? latitude = freezed,
+    Object? macAddress = freezed,
+    Object? height = freezed,
+    Object? width = freezed,
   }) {
     return _then(
       _$DeviceInfoImpl(
@@ -277,11 +297,6 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
                 ? _value.sdkVersion
                 : sdkVersion // ignore: cast_nullable_to_non_nullable
                     as String,
-        macAddress:
-            freezed == macAddress
-                ? _value.macAddress
-                : macAddress // ignore: cast_nullable_to_non_nullable
-                    as String?,
         fingerprint:
             null == fingerprint
                 ? _value.fingerprint
@@ -292,21 +307,36 @@ class __$$DeviceInfoImplCopyWithImpl<$Res>
                 ? _value.androidId
                 : androidId // ignore: cast_nullable_to_non_nullable
                     as String,
+        imei:
+            null == imei
+                ? _value.imei
+                : imei // ignore: cast_nullable_to_non_nullable
+                    as String,
+        advertisingId:
+            freezed == advertisingId
+                ? _value.advertisingId
+                : advertisingId // ignore: cast_nullable_to_non_nullable
+                    as String?,
         ssid:
             freezed == ssid
                 ? _value.ssid
                 : ssid // ignore: cast_nullable_to_non_nullable
                     as String?,
-        longitude:
-            freezed == longitude
-                ? _value.longitude
-                : longitude // ignore: cast_nullable_to_non_nullable
+        macAddress:
+            freezed == macAddress
+                ? _value.macAddress
+                : macAddress // ignore: cast_nullable_to_non_nullable
                     as String?,
-        latitude:
-            freezed == latitude
-                ? _value.latitude
-                : latitude // ignore: cast_nullable_to_non_nullable
-                    as String?,
+        height:
+            freezed == height
+                ? _value.height
+                : height // ignore: cast_nullable_to_non_nullable
+                    as int?,
+        width:
+            freezed == width
+                ? _value.width
+                : width // ignore: cast_nullable_to_non_nullable
+                    as int?,
       ),
     );
   }
@@ -324,12 +354,14 @@ class _$DeviceInfoImpl implements _DeviceInfo {
     required this.productName,
     required this.releaseVersion,
     required this.sdkVersion,
-    this.macAddress,
     required this.fingerprint,
     required this.androidId,
+    required this.imei,
+    this.advertisingId,
     this.ssid,
-    this.longitude,
-    this.latitude,
+    this.macAddress,
+    this.height,
+    this.width,
   });
 
   factory _$DeviceInfoImpl.fromJson(Map<String, dynamic> json) =>
@@ -352,21 +384,25 @@ class _$DeviceInfoImpl implements _DeviceInfo {
   @override
   final String sdkVersion;
   @override
-  final String? macAddress;
-  @override
   final String fingerprint;
   @override
   final String androidId;
   @override
+  final String imei;
+  @override
+  final String? advertisingId;
+  @override
   final String? ssid;
   @override
-  final String? longitude;
+  final String? macAddress;
   @override
-  final String? latitude;
+  final int? height;
+  @override
+  final int? width;
 
   @override
   String toString() {
-    return 'DeviceInfo(model: $model, brand: $brand, manufacturer: $manufacturer, serialNo: $serialNo, device: $device, productName: $productName, releaseVersion: $releaseVersion, sdkVersion: $sdkVersion, macAddress: $macAddress, fingerprint: $fingerprint, androidId: $androidId, ssid: $ssid, longitude: $longitude, latitude: $latitude)';
+    return 'DeviceInfo(model: $model, brand: $brand, manufacturer: $manufacturer, serialNo: $serialNo, device: $device, productName: $productName, releaseVersion: $releaseVersion, sdkVersion: $sdkVersion, fingerprint: $fingerprint, androidId: $androidId, imei: $imei, advertisingId: $advertisingId, ssid: $ssid, macAddress: $macAddress, height: $height, width: $width)';
   }
 
   @override
@@ -387,17 +423,18 @@ class _$DeviceInfoImpl implements _DeviceInfo {
                 other.releaseVersion == releaseVersion) &&
             (identical(other.sdkVersion, sdkVersion) ||
                 other.sdkVersion == sdkVersion) &&
-            (identical(other.macAddress, macAddress) ||
-                other.macAddress == macAddress) &&
             (identical(other.fingerprint, fingerprint) ||
                 other.fingerprint == fingerprint) &&
             (identical(other.androidId, androidId) ||
                 other.androidId == androidId) &&
+            (identical(other.imei, imei) || other.imei == imei) &&
+            (identical(other.advertisingId, advertisingId) ||
+                other.advertisingId == advertisingId) &&
             (identical(other.ssid, ssid) || other.ssid == ssid) &&
-            (identical(other.longitude, longitude) ||
-                other.longitude == longitude) &&
-            (identical(other.latitude, latitude) ||
-                other.latitude == latitude));
+            (identical(other.macAddress, macAddress) ||
+                other.macAddress == macAddress) &&
+            (identical(other.height, height) || other.height == height) &&
+            (identical(other.width, width) || other.width == width));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -412,12 +449,14 @@ class _$DeviceInfoImpl implements _DeviceInfo {
     productName,
     releaseVersion,
     sdkVersion,
-    macAddress,
     fingerprint,
     androidId,
+    imei,
+    advertisingId,
     ssid,
-    longitude,
-    latitude,
+    macAddress,
+    height,
+    width,
   );
 
   /// Create a copy of DeviceInfo
@@ -444,12 +483,14 @@ abstract class _DeviceInfo implements DeviceInfo {
     required final String productName,
     required final String releaseVersion,
     required final String sdkVersion,
-    final String? macAddress,
     required final String fingerprint,
     required final String androidId,
+    required final String imei,
+    final String? advertisingId,
     final String? ssid,
-    final String? longitude,
-    final String? latitude,
+    final String? macAddress,
+    final int? height,
+    final int? width,
   }) = _$DeviceInfoImpl;
 
   factory _DeviceInfo.fromJson(Map<String, dynamic> json) =
@@ -472,17 +513,21 @@ abstract class _DeviceInfo implements DeviceInfo {
   @override
   String get sdkVersion;
   @override
-  String? get macAddress;
-  @override
   String get fingerprint;
   @override
   String get androidId;
   @override
+  String get imei;
+  @override
+  String? get advertisingId;
+  @override
   String? get ssid;
   @override
-  String? get longitude;
+  String? get macAddress;
   @override
-  String? get latitude;
+  int? get height;
+  @override
+  int? get width;
 
   /// Create a copy of DeviceInfo
   /// with the given fields replaced by the non-null parameter values.

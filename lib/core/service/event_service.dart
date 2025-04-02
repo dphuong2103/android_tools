@@ -194,7 +194,7 @@ class EventService {
 
       // Ensure executable permissions and run as root
       result = await _commandService.runCommand(
-        command: CustomCommand(
+        command: CustomAdbCommand(
           command:
               'shell su -c "setenforce 0 && chmod +x \'$destinationPath\' && \'$destinationPath\'"',
         ),

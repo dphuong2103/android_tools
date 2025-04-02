@@ -1,3 +1,4 @@
+import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
@@ -168,32 +169,35 @@ class _ChangeDeviceInfoState extends State<ChangeDeviceInfo> {
                           false)) {
                         return;
                       }
-                      var device = DeviceInfo(
-                        model: _formKey.currentState?.value["model"],
-                        brand: _formKey.currentState?.value["brand"],
-                        manufacturer:
-                            _formKey.currentState?.value["manufacturer"],
-                        device: _formKey.currentState?.value["device"],
-                        productName:
-                            _formKey.currentState?.value["productName"],
-                        releaseVersion:
-                            _formKey.currentState?.value["releaseVersion"],
-                        sdkVersion: _formKey.currentState?.value["sdkVersion"],
-                        serialNo: _formKey.currentState?.value["serialNo"],
-                        fingerprint:
-                            _formKey.currentState?.value["fingerprint"],
-                        macAddress: _formKey.currentState?.value["macSuffix"],
-                        androidId: _formKey.currentState?.value["androidId"],
-                        ssid: _formKey.currentState?.value["ssid"],
-                      );
+                      // var device = DeviceInfo(
+                      //   model: _formKey.currentState?.value["model"],
+                      //   brand: _formKey.currentState?.value["brand"],
+                      //   manufacturer:
+                      //       _formKey.currentState?.value["manufacturer"],
+                      //   device: _formKey.currentState?.value["device"],
+                      //   productName:
+                      //       _formKey.currentState?.value["productName"],
+                      //   releaseVersion:
+                      //       _formKey.currentState?.value["releaseVersion"],
+                      //   sdkVersion: _formKey.currentState?.value["sdkVersion"],
+                      //   serialNo: _formKey.currentState?.value["serialNo"],
+                      //   fingerprint:
+                      //       _formKey.currentState?.value["fingerprint"],
+                      //   macAddress: _formKey.currentState?.value["macSuffix"],
+                      //   androidId: _formKey.currentState?.value["androidId"],
+                      //   ssid: _formKey.currentState?.value["ssid"],
+                      //   advertisingId: _formKey.currentState?.value["advertisingId"],
+                      //   emei:
+                      // );
                     },
                     child: Text("Change"),
                   ),
                   Gap(10),
                   ElevatedButton(
                     onPressed: () {
+                      var deviceInfo = generateRandomDeviceInfo();
                       context.read<HomeCubit>().executeCommandForSelectedDevices(
-                        command: ChangeRandomDeviceInfoCommand(),
+                        command: ChangeDeviceInfoCommand(deviceInfo: deviceInfo),
                       );
                     },
                     child: Text("Change Random"),

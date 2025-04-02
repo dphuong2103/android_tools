@@ -8,6 +8,7 @@ class DeviceStatus {
   static final String connected = "connected";
   static final String notConnected = "not_connected";
   static final String unAuthorized = "unauthorized";
+  static final String fastboot = "fastboot";
 }
 
 class DeviceCommandStatus {

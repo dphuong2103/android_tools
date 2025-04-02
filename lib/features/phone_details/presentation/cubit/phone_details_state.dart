@@ -4,6 +4,7 @@ part of 'phone_details_cubit.dart';
 class PhoneDetailsState with _$PhoneDetailsState {
   const factory PhoneDetailsState({
     List<BackUpFolder>? backUpFolders,
-    @Default(false) bool isRecordingEvents
+    @Default(false) bool isRecordingEvents,
+
 }) = _PhoneDetailsState;
 }
