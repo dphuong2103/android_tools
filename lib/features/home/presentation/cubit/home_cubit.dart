@@ -913,23 +913,12 @@ class HomeCubit extends Cubit<HomeState> {
     required String serialNumber,
     required String name,
   }) async {
-    var currentPath = Directory.current.path;
-    final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
+    var backupDir = _directoryService.getDeviceBackUpFolder(serialNumber: serialNumber, folderName: name);
 
     var result = await executeMultipleCommandsOn1Device(
       successMessage: "Backup successfully",
       tasks: [
-        () => commandService.runCommand(
-          command: RecoveryCommand(),
-          serialNumber: serialNumber,
-        ),
-        () => waitForTWRP(serialNumber),
-        () => commandService.runCommand(
-          command: CustomAdbCommand(
-            command: "-s $serialNumber shell twrp backup BDE '$name'",
-          ),
-          serialNumber: serialNumber,
-        ),
+        ()=> ,
         () => createBackupFolderIfNotExists(
           serialNumber: serialNumber,
           backupName: name,
@@ -941,14 +930,7 @@ class HomeCubit extends Cubit<HomeState> {
           ),
           serialNumber: serialNumber,
         ),
-        () => commandService.runCommand(
-          command: CustomAdbCommand(command: "shell rm -r $backupDir"),
-          serialNumber: serialNumber,
-        ),
-        () => commandService.runCommand(
-          command: RebootCommand(),
-          serialNumber: serialNumber,
-        ),
+
       ],
     );
 
@@ -966,17 +948,7 @@ class HomeCubit extends Cubit<HomeState> {
     required String serialNumber,
     required String name,
   }) async {
-    Directory deviceBackupFolder = _directoryService.getDeviceBackUpFolder(
-      serialNumber: serialNumber,
-      folderName: name,
-    );
-    if (!await deviceBackupFolder.exists()) {
-      return CommandResult(
-        success: false,
-        message: "Backup folder $name not found",
-      );
-    }
-    final backupDir = "/sdcard/TWRP/BACKUPS/$serialNumber/$name";
+    var backupDir = _directoryService.getDeviceBackUpFolder(serialNumber: serialNumber, folderName: name);
     var result = await executeMultipleCommandsOn1Device(
       successMessage: "Backup successfully",
       tasks: [
@@ -1078,7 +1050,7 @@ class HomeCubit extends Cubit<HomeState> {
   }) async {
     try {
       var currentPath = Directory.current.path;
-      Directory directory = Directory("$currentPath/file/rss/$serialNumber/");
+      Directory directory = Directory("$currentPath/file/rss/$serialNumber/$backupName");
       if (!(await directory.exists())) {
         await directory.create(recursive: true);
       }

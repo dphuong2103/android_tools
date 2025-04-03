@@ -5,7 +5,12 @@ class DirectoryService {
     return Directory("${Directory.current.path}/file/rss/$serialNumber");
   }
 
-  Directory getDeviceBackUpFolder({required String serialNumber, required String folderName}){
-    return Directory("${Directory.current.path}/file/rss/$serialNumber/$folderName");
+  Future<Directory> getDeviceBackUpFolder({required String serialNumber, required String folderName}) async {
+    var directory = Directory("${Directory.current.path}/file/rss/$serialNumber/$folderName");
+    if(!await directory.exists()){
+      await directory.create(recursive: true);
+    }
+    return directory;
   }
+
 }

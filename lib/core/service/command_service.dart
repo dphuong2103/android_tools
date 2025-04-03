@@ -19,6 +19,8 @@ import 'package:android_tools/core/logging/log_cubit.dart';
 import '../../../../injection_container.dart';
 import 'package:path/path.dart' as p;
 
+import 'directory_service.dart';
+
 class CommandResult {
   final String? serialNumber;
   final bool success;
@@ -49,7 +51,8 @@ class CommandService {
   final LogCubit logCubit = sl();
   final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
-
+  final DirectoryService _directoryService = sl();
+  
   Future<CommandResult> runCommand({
     required Command command,
     String? serialNumber,
@@ -1228,5 +1231,9 @@ echo "[INFO] Spoofing script finished!"
           serialNumber: serialNumber,
         );
     }
+  }
+  
+  Future<CommandResult> backupPhone({required String backupName, required String serialNumber}) async {
+
   }
 }
