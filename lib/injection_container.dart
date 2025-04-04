@@ -1,4 +1,5 @@
 import 'package:android_tools/core/logging/log_cubit.dart';
+import 'package:android_tools/core/service/backup_service.dart';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/database_service.dart';
@@ -23,6 +24,7 @@ Future<void> init() async {
   sl.registerSingleton<TextFileService>(TextFileService(flavor: flavor));
   sl.registerSingleton<ApkFileService>(ApkFileService(flavor: flavor));
   sl.registerSingleton<DirectoryService>(DirectoryService());
+  sl.registerSingleton<BackUpService>(BackUpService());
 
   //Register Cubit
   sl.registerSingleton<HomeCubit>(HomeCubit());

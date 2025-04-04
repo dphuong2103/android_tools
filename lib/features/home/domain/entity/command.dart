@@ -280,8 +280,8 @@ class UninstallInitApkCommand extends Command {
 
 class BackupCommand extends Command {
   final String backupName;
-
-  const BackupCommand({required this.backupName});
+  final List<String>? excludePackages;
+  const BackupCommand({required this.backupName, this.excludePackages});
 }
 
 class ListBackUpFileCommand extends Command {

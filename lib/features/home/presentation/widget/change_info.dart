@@ -1,6 +1,5 @@
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';

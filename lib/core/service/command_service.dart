@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:android_tools/core/constant/ssid.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
+import 'package:android_tools/core/service/backup_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
@@ -51,8 +52,8 @@ class CommandService {
   final LogCubit logCubit = sl();
   final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
-  final DirectoryService _directoryService = sl();
-  
+  final BackUpService _backUpService = sl();
+
   Future<CommandResult> runCommand({
     required Command command,
     String? serialNumber,
@@ -79,6 +80,16 @@ class CommandService {
     if (command is ChangeGeoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return await _changeGeo(command: command, serialNumber: serialNumber);
+    }
+
+    if (command is BackupCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return await _backupPhone(command: command, serialNumber: serialNumber);
+    }
+
+    if (command is RestoreBackupCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return await _restorePhone(command: command, serialNumber: serialNumber);
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -568,7 +579,9 @@ echo "[INFO] Spoofing script finished!"
           serialNumber: serialNumber,
         ),
         () => runCommand(
-          command: CustomAdbCommand(command: "shell rm -rf /sdcard/magisk-latest.zip"),
+          command: CustomAdbCommand(
+            command: "shell rm -rf /sdcard/magisk-latest.zip",
+          ),
           serialNumber: serialNumber,
         ),
         () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
@@ -1232,8 +1245,134 @@ echo "[INFO] Spoofing script finished!"
         );
     }
   }
-  
-  Future<CommandResult> backupPhone({required String backupName, required String serialNumber}) async {
 
+  Future<CommandResult> _backupPhone({
+    required String serialNumber,
+    required BackupCommand command,
+  }) async {
+    var excludePackages = command.excludePackages ?? [];
+    var backupName = command.backupName;
+    excludePackages.addAll([
+      "org.meowcat.edxposed.manager",
+      "com.midouz.change_phone",
+      "com.topjohnwu.magisk",
+      "com.midouz.change_phone.apk",
+      "com.google.android.contactkeys",
+      "com.google.android.safetycore.apk"
+    ]);
+    var joinedExcludePackages = excludePackages.join(" ") ?? "";
+    var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupDir(
+      backupName: backupName,
+    );
+    var deviceLocalBackupDir = await _backUpService.getDeviceLocalBackupDir(
+      serialNumber: serialNumber,
+    );
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: _backUpService.backupScriptPath,
+            destinationPath: _backUpService.phoneBackupScriptPath,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell chmod +x ${_backUpService.phoneBackupScriptPath}",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+                'shell ${_backUpService.phoneBackupScriptPath} $tempPhoneBackupDir \\"$joinedExcludePackages\\"',
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PullFileCommand(
+            sourcePath: tempPhoneBackupDir,
+            destinationPath: deviceLocalBackupDir.path,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              _backUpService.phoneBackupScriptPath,
+              tempPhoneBackupDir,
+            ],
+          ),
+          serialNumber: serialNumber,
+        ),
+      ],
+      successMessage: "Backup successfully",
+      serialNumber: serialNumber,
+    );
+
+    if (result.isLeft) {
+      return result.left;
+    } else {
+      return result.right;
+    }
+  }
+
+  Future<CommandResult> _restorePhone({
+    required RestoreBackupCommand command,
+    required String serialNumber,
+  }) async {
+    var backupName = command.backupName;
+    var localBackupDir = p.join(
+      (await _backUpService.getDeviceLocalBackupDir(
+        serialNumber: serialNumber,
+      )).path,
+      backupName,
+    );
+    var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupDir(
+      backupName: backupName,
+    );
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: localBackupDir,
+            destinationPath: _backUpService.tempPhoneBackupDirPath,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: _backUpService.restoreScriptPath,
+            destinationPath: _backUpService.phoneRestoreScriptPath,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell chmod +x ${_backUpService.phoneRestoreScriptPath}",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+                'shell "su -c ${_backUpService.phoneRestoreScriptPath} $tempPhoneBackupDir"',
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              _backUpService.phoneRestoreScriptPath,
+              tempPhoneBackupDir,
+            ],
+          ),
+          serialNumber: serialNumber,
+        ),
+      ],
+      successMessage: "Restore successfully",
+      serialNumber: serialNumber,
+    );
+    return result.isLeft ? result.left : result.right;
   }
 }
