@@ -2,8 +2,6 @@ import 'dart:io';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/command_service.dart';
-import 'package:android_tools/features/home/domain/entity/device.dart';
-import 'package:android_tools/injection_container.dart';
 import 'package:path/path.dart' as p;
 import 'package:process_run/process_run.dart';
 

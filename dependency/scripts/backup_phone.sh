@@ -9,8 +9,9 @@ fi
 # Use the first argument as the backup directory
 BACKUP_DIR="$1"
 
-# Use the second argument as the exclude list (optional, space-separated package names)
-EXCLUDE_LIST="$2"
+# Shift past the first argument to get the exclude list
+shift
+EXCLUDE_LIST="$@"
 
 # Create subdirectories for the backup
 mkdir -p "$BACKUP_DIR/apks" "$BACKUP_DIR/data" "$BACKUP_DIR/obb" "$BACKUP_DIR/external" "$BACKUP_DIR/spoof"
@@ -21,10 +22,13 @@ if [ -n "$EXCLUDE_LIST" ]; then
     echo "Raw exclude list: '$EXCLUDE_LIST'"
 fi
 
+# Directly assign the remaining arguments to EXCLUDE_ARRAY
+EXCLUDE_ARRAY=("$@")
+
 # Function to check if a package is in the exclude list
 is_excluded() {
     pkg="$1"
-    for excluded in $EXCLUDE_LIST; do
+    for excluded in "${EXCLUDE_ARRAY[@]}"; do
         if [ "$pkg" = "$excluded" ]; then
             return 0  # True, package is excluded
         fi
@@ -53,8 +57,14 @@ for pkg in $(pm list packages -3 | cut -d: -f2); do
         echo "Skipping data: $pkg (excluded)"
         continue
     fi
-    tar -czf "$BACKUP_DIR/data/$pkg.tar.gz" -C /data/data "$pkg" 2>/dev/null
-    echo "Backed up data for: $pkg"
+    if [ -d "/data/data/$pkg" ]; then
+        tar -czf "$BACKUP_DIR/data/$pkg.tar.gz" -C /data/data "$pkg" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            echo "Backed up data for: $pkg"
+        else
+            echo "Failed to back up data for: $pkg"
+        fi
+    fi
 done
 
 # Backup external data, excluding specified packages

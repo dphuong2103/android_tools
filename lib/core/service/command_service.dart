@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:math';
 
-import 'package:android_tools/core/constant/ssid.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/backup_service.dart';
@@ -10,17 +8,12 @@ import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
-import 'package:android_tools/features/home/presentation/widget/change_info.dart';
 import 'package:either_dart/either.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import '../../../../injection_container.dart';
 import 'package:path/path.dart' as p;
-
-import 'directory_service.dart';
 
 class CommandResult {
   final String? serialNumber;
@@ -201,7 +194,7 @@ class CommandService {
         serialNumber,
       ),
       PushFileCommand(sourcePath: var source, destinationPath: var target) =>
-        _adbCommandWithSerial("push $source $target", serialNumber),
+        _adbCommandWithSerial('push "$source" "$target"', serialNumber),
       SetOnGpsCommand(isOn: var isOn) => _adbCommandWithSerial(
         "shell settings put secure location_mode ${isOn ? 3 : 0}",
         serialNumber,
@@ -241,7 +234,7 @@ class CommandService {
         serialNumber,
       ),
       PullFileCommand(sourcePath: var source, destinationPath: var target) =>
-        _adbCommandWithSerial("pull $source $target", serialNumber),
+        _adbCommandWithSerial('pull "$source" "$target"', serialNumber),
       ChangeDeviceInfoCommand(deviceInfo: var deviceInfo) =>
         "${_adbCommandWithSerial(_buildChangeDeviceBroadcastCommand(deviceInfo), serialNumber)} && ${_buildCommand(ClosePackageCommand(changeDevicePackage), serialNumber, port)} && ${_buildCommand(CustomAdbCommand(command: "shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity"), serialNumber, port)}",
       CustomAdbCommand(command: var cmd) => _adbCommandWithSerial(
@@ -1258,7 +1251,7 @@ echo "[INFO] Spoofing script finished!"
       "com.topjohnwu.magisk",
       "com.midouz.change_phone.apk",
       "com.google.android.contactkeys",
-      "com.google.android.safetycore.apk"
+      "com.google.android.safetycore.apk",
     ]);
     var joinedExcludePackages = excludePackages.join(" ") ?? "";
     var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupDir(
@@ -1270,22 +1263,37 @@ echo "[INFO] Spoofing script finished!"
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
-          command: PushFileCommand(
-            sourcePath: _backUpService.backupScriptPath,
-            destinationPath: _backUpService.phoneBackupScriptPath,
+          command: CustomAdbCommand(
+            command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
+          ),
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              _backUpService.getPhoneBackupScriptPath(),
+              tempPhoneBackupDir,
+            ],
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
-          command: CustomAdbCommand(
-            command: "shell chmod +x ${_backUpService.phoneBackupScriptPath}",
+          command: PushFileCommand(
+            sourcePath: _backUpService.backupScriptPath,
+            destinationPath: _backUpService.getPhoneBackupScriptPath(),
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command:
-                'shell ${_backUpService.phoneBackupScriptPath} $tempPhoneBackupDir \\"$joinedExcludePackages\\"',
+                "shell chmod +x ${_backUpService.getPhoneBackupScriptPath()}",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+            'shell "su -c\ ${_backUpService.getPhoneBackupScriptPath()} $tempPhoneBackupDir $joinedExcludePackages"'
           ),
           serialNumber: serialNumber,
         ),
@@ -1299,7 +1307,7 @@ echo "[INFO] Spoofing script finished!"
         () => runCommand(
           command: RemoveFilesCommand(
             filePaths: [
-              _backUpService.phoneBackupScriptPath,
+              _backUpService.getPhoneBackupScriptPath(),
               tempPhoneBackupDir,
             ],
           ),
@@ -1334,6 +1342,11 @@ echo "[INFO] Spoofing script finished!"
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
+          ),
+        ),
+        () => runCommand(
           command: PushFileCommand(
             sourcePath: localBackupDir,
             destinationPath: _backUpService.tempPhoneBackupDirPath,
@@ -1343,27 +1356,28 @@ echo "[INFO] Spoofing script finished!"
         () => runCommand(
           command: PushFileCommand(
             sourcePath: _backUpService.restoreScriptPath,
-            destinationPath: _backUpService.phoneRestoreScriptPath,
-          ),
-          serialNumber: serialNumber,
-        ),
-        () => runCommand(
-          command: CustomAdbCommand(
-            command: "shell chmod +x ${_backUpService.phoneRestoreScriptPath}",
+            destinationPath: _backUpService.getPhoneRestoreScriptPath(),
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command:
-                'shell "su -c ${_backUpService.phoneRestoreScriptPath} $tempPhoneBackupDir"',
+                "shell chmod +x ${_backUpService.getPhoneRestoreScriptPath()}",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+                'shell su -c ${_backUpService.getPhoneRestoreScriptPath()} $tempPhoneBackupDir',
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
             filePaths: [
-              _backUpService.phoneRestoreScriptPath,
+              _backUpService.getPhoneRestoreScriptPath(),
               tempPhoneBackupDir,
             ],
           ),

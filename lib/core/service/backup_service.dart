@@ -3,37 +3,45 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 class BackUpService {
-  String backupScriptPath =
-      "${Directory.current.path}/dependency/scripts/backup_phone.sh";
-  String phoneBackupScriptPath = p.join(
-    "/data",
-    "local",
-    "tmp",
-    "backup_script.sh",
+  String backupScriptPath = p.join(
+    Directory.current.path,
+    "dependency",
+    "scripts",
+    "backup_phone.sh",
   );
 
-  String phoneRestoreScriptPath = p.join(
-    "/data",
-    "local",
-    "tmp",
-    "restore_script.sh",
+  final String phoneScriptsDir = "/data/local/tmp/scripts";
+  String getPhoneBackupScriptPath(){
+    return "$phoneScriptsDir/backup_phone.sh";
+  }
+
+  String getPhoneRestoreScriptPath(){
+    return "$phoneScriptsDir/restore_phone.sh";
+  }
+
+  String tempPhoneBackupDirPath ="/sdcard/backup";
+
+  String restoreScriptPath = p.join(
+    Directory.current.path,
+    "dependency",
+    "scripts",
+    "restore_phone.sh",
   );
 
-  String tempPhoneBackupDirPath =
-      "/sdcard/backups";
-
-  String restoreScriptPath =
-      "${Directory.current.path}/dependency/scripts/restore_phone.sh";
+  // "${Directory.current.path}/dependency/scripts/restore_phone.sh";
 
   Directory getDeviceBackUpDirectory({required String serialNumber}) {
-    return Directory("${Directory.current.path}/file/backup/$serialNumber");
+    // "${Directory.current.path}/file/backup/$serialNumber"
+    return Directory(
+      p.join(Directory.current.path, "file", "backup", serialNumber),
+    );
   }
 
   Future<Directory> getDeviceLocalBackupDir({
     required String serialNumber,
   }) async {
     var directory = Directory(
-      "${Directory.current.path}/file/backup/$serialNumber",
+      p.join(Directory.current.path, "file", "backup", serialNumber),
     );
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -41,9 +49,8 @@ class BackUpService {
     return directory;
   }
 
-
   String getSpecificTempPhoneBackupDir({required String backupName}) {
-    return p.join(tempPhoneBackupDirPath, backupName);
+    return "$tempPhoneBackupDirPath/$backupName";
   }
 
 }
