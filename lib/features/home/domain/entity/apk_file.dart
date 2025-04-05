@@ -8,6 +8,7 @@ class ApkFile with _$ApkFile {
   factory ApkFile({
     required String path,
     required String name,
+    required double size,
     required bool isSelected,
     required DateTime createdAt,
     required DateTime modifiedAt,

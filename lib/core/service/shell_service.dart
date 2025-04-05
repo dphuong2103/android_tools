@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/command_service.dart';
+import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:process_run/process_run.dart';
 
@@ -112,7 +113,6 @@ class ShellService {
     try {
       var result = await run();
       String output = result.outText.trim();
-
       if (_isConnectionError(output)) {
         return _logError(
           serialNumber,
@@ -120,7 +120,6 @@ class ShellService {
           result.errText,
         );
       }
-
       if (result.first.exitCode == 0) {
         return _logSuccess(serialNumber, output);
       } else {

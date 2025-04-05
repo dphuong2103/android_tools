@@ -1,9 +1,12 @@
-import 'package:android_tools/core/util/date_util.dart';
+import 'dart:io';
+
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/home/presentation/cubit/install_apk_tab_cubit.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:collection/collection.dart';
+import 'package:confirm_dialog/confirm_dialog.dart';
 import 'package:data_table_2/data_table_2.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
@@ -35,6 +38,8 @@ class InstallApkTabView extends StatefulWidget {
 }
 
 class _InstallApkTabViewState extends State<InstallApkTabView> {
+  bool _dragging = false;
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<HomeCubit, HomeState>(
@@ -49,58 +54,95 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
               return Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.only(top:10),
+                    padding: EdgeInsets.only(top: 10),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         ElevatedButton(
-                          onPressed: state.isLoading ? null : () {
-                            var hasSelectedDevice = homeState.devices
-                                .firstWhereOrNull((device) => device.isSelected);
-                            if (hasSelectedDevice == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Please select at least 1 device",
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            var selectedApks =
-                                state.apks
-                                    .where((apk) => apk.isSelected)
-                                    .toList();
-                            if (selectedApks.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Please select at least 1 apk"),
-                                ),
-                              );
-                              return;
-                            }
+                          onPressed:
+                              state.isLoading
+                                  ? null
+                                  : () {
+                                    var hasSelectedDevice = homeState.devices
+                                        .firstWhereOrNull(
+                                          (device) => device.isSelected,
+                                        );
+                                    if (hasSelectedDevice == null) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            "Please select at least 1 device",
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    var selectedApks =
+                                        state.apks
+                                            .where((apk) => apk.isSelected)
+                                            .toList();
+                                    if (selectedApks.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            "Please select at least 1 apk",
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
 
-                            homeContext
-                                .read<HomeCubit>()
-                                .executeCommandForSelectedDevices(
-                                  command: InstallApksCommand(
-                                    selectedApks
-                                        .map((apk) => apk.name)
-                                        .toList(),
-                                   ),
-                                );
-                          },
+                                    homeContext
+                                        .read<HomeCubit>()
+                                        .executeCommandForSelectedDevices(
+                                          command: InstallApksCommand(
+                                            selectedApks
+                                                .map((apk) => apk.name)
+                                                .toList(),
+                                          ),
+                                        );
+                                  },
                           child: Text("Install"),
                         ),
                         Gap(10),
                         IconButton(
                           icon: Icon(Icons.refresh, color: Colors.green),
                           onPressed:
-                          state.isLoading
-                              ? null
-                              : () async {
-                            context.read<InstallApkTabCubit>().refresh();
-                          },
+                              state.isLoading
+                                  ? null
+                                  : () async {
+                                    context
+                                        .read<InstallApkTabCubit>()
+                                        .refresh();
+                                  },
+                          onLongPress: null,
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed:
+                              state.isLoading
+                                  ? null
+                                  : () async {
+                                    if (await confirm(
+                                      context,
+                                      title: const Text('Confirm Delete'),
+                                      content: const Text(
+                                        'Would you like to remove?',
+                                      ),
+                                      textOK: const Text('Yes'),
+                                      textCancel: const Text('No'),
+                                    )) {
+                                      if (context.mounted) {
+                                        context
+                                            .read<InstallApkTabCubit>()
+                                            .deleteSelectedApks();
+                                      }
+                                    }
+                                  },
                           onLongPress: null,
                         ),
                       ],
@@ -118,47 +160,61 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
                       },
                       columns: [
                         DataColumn2(label: Text("Name")),
-                        DataColumn2(
-                          label: Text("Created At"),
-                          onSort: (i, b) {},
-                        ),
-                        DataColumn2(label: Text("Modified At")),
-                        // DataColumn2(label: Text("Type")),
+                        DataColumn2(label: Text("Size")),
                       ],
                       rows:
                           state.apks
                               .map(
-                                (folder) => DataRow2(
+                                (apk) => DataRow2(
                                   onSelectChanged: (bool? selected) {
                                     context
                                         .read<InstallApkTabCubit>()
                                         .onToggleSelectFile(
-                                          apkName: folder.name,
+                                          apkName: apk.name,
                                           selected: selected ?? false,
                                         );
                                   },
-                                  selected: folder.isSelected,
+                                  selected: apk.isSelected,
                                   cells: [
-                                    DataCell(Text(folder.name)),
+                                    DataCell(Text(apk.name)),
                                     DataCell(
-                                      Text(
-                                        formatDateTime(
-                                          dateTime: folder.createdAt,
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        formatDateTime(
-                                          dateTime: folder.createdAt,
-                                        ),
-                                      ),
+                                      Text("${apk.size.toStringAsFixed(2)} MB"),
                                     ),
                                   ],
                                 ),
                               )
                               .toList() ??
                           [],
+                    ),
+                  ),
+                  DropTarget(
+                    onDragDone: (detail) {
+                      context.read<InstallApkTabCubit>().onApksDrop(
+                        detail.files.map((file) => File(file.path)).toList(),
+                      );
+                    },
+                    onDragEntered: (detail) {
+                      setState(() {
+                        _dragging = true;
+                      });
+                    },
+                    onDragExited: (detail) {
+                      setState(() {
+                        _dragging = false;
+                      });
+                    },
+                    child: Container(
+                      height: 50,
+                      width: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color:
+                            _dragging
+                                ? Colors.blue.withOpacity(0.4)
+                                : Colors.black26,
+                      ),
+
+                      child: Icon(Icons.move_to_inbox),
                     ),
                   ),
                 ],

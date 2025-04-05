@@ -698,7 +698,7 @@ class HomeCubit extends Cubit<HomeState> {
             commandStatus:
             result.success
                 ? DeviceCommandStatus.success
-                : '${DeviceCommandStatus.failed}: ${result.error}',
+                : '${DeviceCommandStatus.failed}: ${result.message}',
           );
         }).toList(),
       ),

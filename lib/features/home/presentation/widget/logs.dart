@@ -43,12 +43,29 @@ class _LogsState extends State<Logs> {
         });
       },
       builder: (context, logState) {
-        return ListView.builder(
-          controller: logsScrollController,
-          itemCount: logState.logs.length,
-          itemBuilder: (context, index) {
-            return LogItem(log: logState.logs[index]);
-          },
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    context.read<LogCubit>().clearLogs();
+                  },
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                ),
+              ],
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: logsScrollController,
+                itemCount: logState.logs.length,
+                itemBuilder: (context, index) {
+                  return LogItem(log: logState.logs[index]);
+                },
+              ),
+            ),
+          ],
         );
       },
     );
