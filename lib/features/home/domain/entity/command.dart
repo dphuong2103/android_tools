@@ -100,13 +100,13 @@ class SwipeCommand extends Command {
       'SwipeCommand(startX: $startX, startY: $startY, endX: $endX, endY: $endY, duration: $duration)';
 }
 
-class InstallApkCommand extends Command {
-  final String apkName;
+class InstallApksCommand extends Command {
+  final List<String> apkNames;
 
-  const InstallApkCommand(this.apkName);
+  const InstallApksCommand(this.apkNames);
 
   @override
-  String toString() => 'InstallApkCommand(apkName: $apkName)';
+  String toString() => 'InstallApkCommand(apkName: $apkNames)';
 }
 
 class UninstallAppsCommand extends Command {
@@ -147,8 +147,6 @@ class SetProxyCommand extends Command {
 class RemoveProxyCommand extends Command {}
 
 class VerifyProxyCommand extends Command {}
-
-class GetPackagesCommand extends Command {}
 
 class SetAlwaysOnCommand extends Command {
   final int value;
@@ -304,4 +302,22 @@ class ChangeGeoCommand extends Command {
     required this.longitude,
     required this.timeZone,
   });
+}
+
+class GetPackagesCommand extends Command{
+  final bool isUserPackagesOnly;
+  const GetPackagesCommand({this.isUserPackagesOnly = false});
+}
+
+class ResetPhoneStateCommand extends Command{
+ final List<String>? excludeApps;
+ const ResetPhoneStateCommand({this.excludeApps});
+}
+
+class PushAndRunScriptCommand extends Command{
+  final String scriptName;
+  final String? parameters;
+
+  PushAndRunScriptCommand({required this.scriptName, this.parameters});
+
 }

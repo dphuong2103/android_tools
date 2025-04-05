@@ -2,12 +2,13 @@ import 'dart:math';
 
 import 'package:android_tools/core/constant/location_mapping.dart';
 import 'package:android_tools/core/constant/time_zone.dart';
+import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/core/sub_window/sub_window.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
-import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
+import 'package:android_tools/features/home/presentation/widget/logs.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
@@ -60,11 +61,7 @@ class _HomeViewState extends State<HomeView>
   late final TextEditingController _repeatController;
   late final TextEditingController _geoController;
   late final TabController _tabController;
-  final tabs = <Widget>[
-    Tab(text: "Logs"),
-    Tab(text: "Change info"),
-    Tab(text: "Backup (RSS)"),
-  ];
+  final tabs = <Widget>[Tab(text: "Install Apps"), Tab(text: "Change info"), Tab(text: "Backup (RSS)")];
 
   @override
   void initState() {
@@ -421,7 +418,7 @@ class _HomeViewState extends State<HomeView>
                   orientation: ResizableOrientation.horizontal,
                   dividerColor: Colors.black26,
                   dividerThickness: 4.0,
-                  initialProportions: const [1, 1],
+                  initialProportions: const [1, 1, 1],
                   minChildSize: 200.0,
                   children: [
                     (context) => Padding(
@@ -654,39 +651,35 @@ class _HomeViewState extends State<HomeView>
                         ],
                       ),
                     ),
-                    // VerticalDivider(color: Colors.black12, thickness: 2),
                     (context) => Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TabBar(
-                              controller: _tabController,
-                              onTap: (int? index) {
-                                if (index == null) {
-                                  return;
-                                }
-                                String path = "";
-                                switch (index) {
-                                  case 0:
-                                    path =
-                                        "${RouteName.HOME}${RouteName.HOME_LOGS}";
-                                    break;
-                                  case 1:
-                                    path =
-                                        "${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}";
-                                    break;
-                                  default:
-                                    path =
-                                        "${RouteName.HOME}${RouteName.HOME_BACKUP}";
-                                    break;
-                                }
-                                context.push(path);
-                              },
-                              tabs: tabs,
-                            ),
+                          TabBar(
+                            controller: _tabController,
+                            onTap: (int? index) {
+                              if (index == null) {
+                                return;
+                              }
+                              String path = "";
+                              switch (index) {
+                                case 0:
+                                  path =
+                                  "${RouteName.HOME}${RouteName.HOME_INSTALL_APK}";
+                                  break;
+                                case 1:
+                                  path =
+                                      "${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}";
+                                  break;
+                                default:
+                                  path =
+                                      "${RouteName.HOME}${RouteName.HOME_BACKUP}";
+                                  break;
+                              }
+                              context.push(path);
+                            },
+                            tabs: tabs,
                           ),
                           Expanded(
                             child: Padding(
@@ -697,6 +690,7 @@ class _HomeViewState extends State<HomeView>
                         ],
                       ),
                     ),
+                    (context) => Logs(),
                   ],
                 ),
               ),

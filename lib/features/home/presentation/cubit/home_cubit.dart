@@ -1,11 +1,11 @@
 import 'dart:io';
 
+import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/database_service.dart';
-import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
@@ -16,7 +16,6 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:collection/collection.dart';
 import '../../../../injection_container.dart';
-import '../../domain/entity/adb_device.dart';
 
 part 'home_cubit.freezed.dart';
 
@@ -104,8 +103,7 @@ class HomeCubit extends Cubit<HomeState> {
   }
 
   Map<String, DeviceConnectionStatus> deviceListStatusMap(
-    List<AdbDevice> maps,
-  ) {
+      List<AdbDevice> maps,) {
     return Map.fromEntries(maps.map((e) => MapEntry(e.serialNumber, e.status)));
   }
 
@@ -121,13 +119,13 @@ class HomeCubit extends Cubit<HomeState> {
     );
 
     final updatedDevices =
-        deviceList.map((device) {
-          return device.copyWith(
-            status:
-                deviceStatusMap[device.ip] ??
-                DeviceConnectionStatus.notDetected,
-          );
-        }).toList();
+    deviceList.map((device) {
+      return device.copyWith(
+        status:
+        deviceStatusMap[device.ip] ??
+            DeviceConnectionStatus.notDetected,
+      );
+    }).toList();
 
     // Emit the updated device list with their statuses
     emit(state.copyWith(devices: updatedDevices));
@@ -146,13 +144,13 @@ class HomeCubit extends Cubit<HomeState> {
     );
 
     final updatedDevices =
-        deviceList.map((device) {
-          return device.copyWith(
-            status:
-                deviceStatusMap[device.ip] ??
-                DeviceConnectionStatus.notDetected,
-          );
-        }).toList();
+    deviceList.map((device) {
+      return device.copyWith(
+        status:
+        deviceStatusMap[device.ip] ??
+            DeviceConnectionStatus.notDetected,
+      );
+    }).toList();
 
     emit(state.copyWith(isRefreshing: false, devices: updatedDevices));
   }
@@ -203,17 +201,17 @@ class HomeCubit extends Cubit<HomeState> {
 
   void onSelectAll(bool? isSelectAll) {
     var devices =
-        state.devices
-            .map((d) => d.copyWith(isSelected: isSelectAll ?? false))
-            .toList();
+    state.devices
+        .map((d) => d.copyWith(isSelected: isSelectAll ?? false))
+        .toList();
     emit(state.copyWith(devices: devices));
   }
 
   void onToggleDeviceSelection(String ip, bool isSelected) {
     var devices =
-        state.devices.map((d) {
-          return d.ip == ip ? d.copyWith(isSelected: isSelected) : d;
-        }).toList();
+    state.devices.map((d) {
+      return d.ip == ip ? d.copyWith(isSelected: isSelected) : d;
+    }).toList();
     emit(state.copyWith(devices: devices));
   }
 
@@ -376,7 +374,7 @@ class HomeCubit extends Cubit<HomeState> {
         return Left("Apk $apkName not found");
       }
 
-      return Right(InstallApkCommand(apkName));
+      return Right(InstallApksCommand([apkName]));
     }
 
     if (lowerCaseCommand.startsWith(uninstallAppsCommand.toLowerCase())) {
@@ -434,9 +432,9 @@ class HomeCubit extends Cubit<HomeState> {
 
     if (lowerCaseCommand.startsWith(setAlwaysOnCommand.toLowerCase())) {
       int? alwaysOn =
-          getValueInsideParentheses(command) != null
-              ? int.tryParse(getValueInsideParentheses(command)!)
-              : null;
+      getValueInsideParentheses(command) != null
+          ? int.tryParse(getValueInsideParentheses(command)!)
+          : null;
       if (alwaysOn == null) {
         _logCubit.log(
           title: "Error: ",
@@ -454,9 +452,9 @@ class HomeCubit extends Cubit<HomeState> {
 
     if (lowerCaseCommand.startsWith(setOnGpsCommand.toLowerCase())) {
       int? isOn =
-          getValueInsideParentheses(command) != null
-              ? int.tryParse(getValueInsideParentheses(command)!)
-              : null;
+      getValueInsideParentheses(command) != null
+          ? int.tryParse(getValueInsideParentheses(command)!)
+          : null;
       if (isOn == null) {
         _logCubit.log(
           title: "Error: ",
@@ -491,9 +489,9 @@ class HomeCubit extends Cubit<HomeState> {
       setAllowMockLocationCommand.toLowerCase(),
     )) {
       int? isAllow =
-          getValueInsideParentheses(command) != null
-              ? int.tryParse(getValueInsideParentheses(command)!)
-              : null;
+      getValueInsideParentheses(command) != null
+          ? int.tryParse(getValueInsideParentheses(command)!)
+          : null;
       if (isAllow == null) {
         _logCubit.log(
           title: "Error: ",
@@ -638,39 +636,34 @@ class HomeCubit extends Cubit<HomeState> {
 
     // Update status to inProgress for selected devices
     var updatedDeviceSerialNumbers =
-        devices.map((device) => device.ip).toList();
+    devices.map((device) => device.ip).toList();
     emit(
       state.copyWith(
         devices:
-            state.devices.map((device) {
-              if (updatedDeviceSerialNumbers.contains(device.ip)) {
-                return device.copyWith(
-                  commandStatus: DeviceCommandStatus.inProgress,
-                );
-              }
-              return device;
-            }).toList(),
+        state.devices.map((device) {
+          if (updatedDeviceSerialNumbers.contains(device.ip)) {
+            return device.copyWith(
+              commandStatus: DeviceCommandStatus.inProgress,
+            );
+          }
+          return device;
+        }).toList(),
       ),
     );
     var deviceIps =
-        state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
+    state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
     List<CommandResult> results = [];
-    if (command is SetUpCommand) {
-      results = await Future.wait(
-        deviceIps
-            .map((serialNumber) => setUpPhone(serialNumber: serialNumber))
-            .toList(),
-      );
-    } else if (command is RestoreBackupCommand) {
+    if (command is RestoreBackupCommand) {
       results = await Future.wait(
         deviceIps
             .map(
-              (serialNumber) => restorePhone(
+              (serialNumber) =>
+              restorePhone(
                 serialNumber: serialNumber,
                 name: command.backupName,
               ),
-            )
+        )
             .toList(),
       );
     } else {
@@ -691,23 +684,23 @@ class HomeCubit extends Cubit<HomeState> {
     emit(
       state.copyWith(
         devices:
-            state.devices.map((device) {
-              if (!device.isSelected) return device;
+        state.devices.map((device) {
+          if (!device.isSelected) return device;
 
-              var result = results.firstWhereOrNull(
+          var result = results.firstWhereOrNull(
                 (r) => r.serialNumber == device.ip,
-              );
-              if (result == null) {
-                return device;
-              }
+          );
+          if (result == null) {
+            return device;
+          }
 
-              return device.copyWith(
-                commandStatus:
-                    result.success
-                        ? DeviceCommandStatus.success
-                        : '${DeviceCommandStatus.failed}: ${result.error}',
-              );
-            }).toList(),
+          return device.copyWith(
+            commandStatus:
+            result.success
+                ? DeviceCommandStatus.success
+                : '${DeviceCommandStatus.failed}: ${result.error}',
+          );
+        }).toList(),
       ),
     );
 
@@ -723,30 +716,31 @@ class HomeCubit extends Cubit<HomeState> {
     emit(
       state.copyWith(
         devices:
-            state.devices.map((device) {
-              if (device.isSelected) {
-                return device.copyWith(
-                  commandStatus:
-                      "${DeviceCommandStatus.inProgress}: show screen",
-                );
-              }
-              return device;
-            }).toList(),
+        state.devices.map((device) {
+          if (device.isSelected) {
+            return device.copyWith(
+              commandStatus:
+              "${DeviceCommandStatus.inProgress}: show screen",
+            );
+          }
+          return device;
+        }).toList(),
       ),
     );
 
-    _shellService.runScrcpyForMultipleDevices(devices.map((d) => d.ip).toList());
+    _shellService.runScrcpyForMultipleDevices(
+        devices.map((d) => d.ip).toList());
     emit(
       state.copyWith(
         devices:
-            state.devices.map((device) {
-              if (device.isSelected) {
-                return device.copyWith(
-                  commandStatus: "${DeviceCommandStatus.success}: show screen",
-                );
-              }
-              return device;
-            }).toList(),
+        state.devices.map((device) {
+          if (device.isSelected) {
+            return device.copyWith(
+              commandStatus: "${DeviceCommandStatus.success}: show screen",
+            );
+          }
+          return device;
+        }).toList(),
       ),
     );
   }
@@ -765,7 +759,7 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> deleteDevices() async {
     var deviceSerials =
-        state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
+    state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
     _logCubit.log(title: "Deleting: ");
 
@@ -794,12 +788,12 @@ class HomeCubit extends Cubit<HomeState> {
     emit(state.copyWith(isConnectingAll: true));
     try {
       var devices =
-          state.devices.where((device) => isValidIp(device.ip)).toList();
+      state.devices.where((device) => isValidIp(device.ip)).toList();
       var deviceSerials = devices.map((device) => device.ip).toList();
       List<Future<CommandResult>> tasks =
-          deviceSerials.map((deviceIp) async {
-            return await _commandService.connectOverTcpIp(deviceIp);
-          }).toList();
+      deviceSerials.map((deviceIp) async {
+        return await _commandService.connectOverTcpIp(deviceIp);
+      }).toList();
       await Future.wait(tasks);
     } finally {
       emit(state.copyWith(isConnectingAll: false));
@@ -833,64 +827,6 @@ class HomeCubit extends Cubit<HomeState> {
     return _apkFileService.fileExists(apkName);
   }
 
-  Future<CommandResult> setUpPhone({required String serialNumber}) async {
-    var result = await executeMultipleCommandsOn1Device(
-      successMessage: "Setup successfully",
-      tasks: [
-        () => _commandService.runCommand(
-          command: KeyCommand("KEYCODE_HOME"),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: InstallApkCommand("link2sd"),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: InstallApkCommand("hide_mock_location"),
-          serialNumber: serialNumber,
-        ),
-        // () => commandService.runCommand(
-        //   command: InstallApkCommand("google_chrome"),
-        //   serialNumber: serialNumber,
-        // ),
-        () => _commandService.runCommand(
-          command: InstallApkCommand("device_info"),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: InstallApkCommand("fake_gps"),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: SetAlwaysOnCommand(value: 1),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: SetMockLocationPackageCommand(
-            packageName: defaultLocationMockPackage,
-          ),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: SetAlwaysOnCommand(value: 0),
-          serialNumber: serialNumber,
-        ),
-        () => _commandService.runCommand(
-          command: RebootCommand(),
-          serialNumber: serialNumber,
-        ),
-      ],
-    );
-    if (result.isLeft) {
-      return result.left;
-    } else {
-      return CommandResult(
-        success: true,
-        message: "Back up $serialNumber successfully",
-      );
-    }
-  }
-
   Future<List<CommandResult>> executeCommandForSelectedDevices({
     required Command command,
   }) {
@@ -907,78 +843,6 @@ class HomeCubit extends Cubit<HomeState> {
     );
   }
 
-  Future<CommandResult> waitForTWRP(String deviceSerial) async {
-    _logCubit.log(title: "Waiting for TWRP...", type: LogType.DEBUG);
-    int i = 0;
-    while (i <= 100) {
-      try {
-        // Execute the ADB command to check for TWRP
-        ProcessResult result = await Process.run('adb', [
-          '-s',
-          deviceSerial,
-          'shell',
-          'ls /sbin',
-        ], runInShell: true);
-
-        // Check if 'twrp' appears in the output
-        if (result.stdout.toString().contains('twrp')) {
-          _logCubit.log(title: "TWRP detected...", type: LogType.DEBUG);
-          return CommandResult(success: true, message: "TWRP detected");
-        } else {
-          // Get device state
-          ProcessResult stateResult = await Process.run('adb', [
-            '-s',
-            deviceSerial,
-            'get-state',
-          ], runInShell: true);
-          await Future.delayed(Duration(seconds: 2));
-        }
-      } catch (e) {
-        _logCubit.log(
-          title: "Open TWRP Error...",
-          message: e.toString(),
-          type: LogType.DEBUG,
-        );
-        return CommandResult(success: false, message: "TWRP not detected");
-      }
-      await Future.delayed(Duration(seconds: 2));
-      i++;
-    }
-    return CommandResult(success: false, message: "TWRP not detected");
-  }
-
-  Future<Either<CommandResult, CommandResult>>
-  executeMultipleCommandsOn1Device({
-    required List<Future<CommandResult> Function()> tasks,
-    required String successMessage,
-  }) async {
-    for (var task in tasks) {
-      var result = await task();
-      if (!result.success) return Left(result);
-    }
-    return Right(CommandResult(success: true, message: successMessage));
-  }
-
-  Future<CommandResult> createBackupFolderIfNotExists({
-    required String serialNumber,
-    required String backupName,
-  }) async {
-    try {
-      var currentPath = Directory.current.path;
-      Directory directory = Directory(
-        "$currentPath/file/backup/$serialNumber/$backupName",
-      );
-      if (!(await directory.exists())) {
-        await directory.create(recursive: true);
-      }
-      return CommandResult(
-        success: true,
-        message: "Create folder ${directory.path} successfully!",
-      );
-    } catch (e) {
-      return CommandResult(success: false, message: e.toString());
-    }
-  }
 
   List<Device> getSelectedDevices() {
     return state.devices.where((d) => d.isSelected).toList();
@@ -1014,7 +878,7 @@ class HomeCubit extends Cubit<HomeState> {
 
       // Calculate delay
       double delayMs =
-          lastTimestamp != null ? (timestamp - lastTimestamp!) * 1000 : 0;
+      lastTimestamp != null ? (timestamp - lastTimestamp!) * 1000 : 0;
       lastTimestamp = timestamp;
 
       // Schedule event execution

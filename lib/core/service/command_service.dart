@@ -1,12 +1,12 @@
 import 'dart:io';
 
+import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/backup_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/domain/entity/adb_device.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:either_dart/either.dart';
 import 'package:intl/intl.dart';
@@ -37,6 +37,7 @@ class CommandResult {
 }
 
 const changeDeviceBroadcast = "com.midouz.change_phone.SET_SPOOF";
+const resetPhoneStateBroadcast = "com.midouz.change_phone.RESET_PHONE_STATEF";
 const changeGeoBroadcast = "com.midouz.change_phone.SET_GEO";
 const changeDevicePackage = "com.midouz.change_phone";
 
@@ -55,10 +56,9 @@ class CommandService {
     if (command is ChangeRandomDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       var deviceInfo = generateRandomDeviceInfo();
-      return await _changeDeviceInfoOld(
+      return await _changeDeviceInfo(
         deviceInfo: deviceInfo,
         serialNumber: serialNumber,
-        packagesToClear: command.packagesToClear,
       );
     }
 
@@ -83,6 +83,14 @@ class CommandService {
     if (command is RestoreBackupCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return await _restorePhone(command: command, serialNumber: serialNumber);
+    }
+
+    if (command is PushAndRunScriptCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return await _pushAndRunScript(
+        command: command,
+        serialNumber: serialNumber,
+      );
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -141,16 +149,20 @@ class CommandService {
           'shell input swipe $sx $sy $ex $ey $dur',
           serialNumber,
         ),
-      InstallApkCommand(apkName: var apkName) => _adbCommandWithSerial(
-        "install \"${_apkFileService.filePath(apkName)}\"",
-        serialNumber,
-      ),
+      InstallApksCommand(apkNames: var apkNames) => apkNames
+          .map(
+            (apkName) => _adbCommandWithSerial(
+              "install \"${_apkFileService.filePath(apkName)}\"",
+              serialNumber,
+            ),
+          )
+          .join(Platform.isWindows ? " ; " : " && "),
       UninstallAppsCommand(packages: var packages) => packages
           .map(
             (package) =>
                 _adbCommandWithSerial("uninstall $package", serialNumber),
           )
-          .join(" && "),
+          .join(Platform.isWindows ? " ; " : " && "),
       RebootCommand() => _adbCommandWithSerial("reboot", serialNumber),
       RebootBootLoaderCommand() => _adbCommandWithSerial(
         "reboot bootloader",
@@ -190,7 +202,7 @@ class CommandService {
         serialNumber,
       ),
       RemoveFilesCommand(filePaths: var filePaths) => _adbCommandWithSerial(
-        'shell "su -c \'${filePaths.map((path) => 'rm -rf $path').join(' && ')}\'"',
+        'shell "su -c \'${filePaths.map((path) => 'rm -rf $path').join(Platform.isWindows ? ' ; ' : ' && ')}\'"',
         serialNumber,
       ),
       PushFileCommand(sourcePath: var source, destinationPath: var target) =>
@@ -214,7 +226,7 @@ class CommandService {
             (package) =>
                 _adbCommandWithSerial("shell pm clear $package", serialNumber),
           )
-          .join(" && "),
+          .join(Platform.isWindows ? ' ; ' : ' && '),
       SetAllowMockLocationCommand(isAllow: var isAllow) =>
         _adbCommandWithSerial(
           "shell settings put secure mock_location ${isAllow ? 1 : 0}",
@@ -236,7 +248,7 @@ class CommandService {
       PullFileCommand(sourcePath: var source, destinationPath: var target) =>
         _adbCommandWithSerial('pull "$source" "$target"', serialNumber),
       ChangeDeviceInfoCommand(deviceInfo: var deviceInfo) =>
-        "${_adbCommandWithSerial(_buildChangeDeviceBroadcastCommand(deviceInfo), serialNumber)} && ${_buildCommand(ClosePackageCommand(changeDevicePackage), serialNumber, port)} && ${_buildCommand(CustomAdbCommand(command: "shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity"), serialNumber, port)}",
+        "${_adbCommandWithSerial(_buildChangeDeviceBroadcastCommand(deviceInfo), serialNumber)} ${Platform.isWindows ? ' ; ' : ' && '} ${_buildCommand(ClosePackageCommand(changeDevicePackage), serialNumber, port)} && ${_buildCommand(CustomAdbCommand(command: "shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity"), serialNumber, port)}",
       CustomAdbCommand(command: var cmd) => _adbCommandWithSerial(
         cmd,
         serialNumber,
@@ -253,6 +265,11 @@ class CommandService {
             longitude: longitude,
             timeZone: timeZone,
           ),
+          serialNumber,
+        ),
+      ResetPhoneStateCommand(excludeApps: var excludeApps) =>
+        _adbCommandWithSerial(
+          'shell am broadcast -a $resetPhoneStateBroadcast -p $changeDevicePackage',
           serialNumber,
         ),
       _ => throw UnsupportedError('Unknown command'),
@@ -434,7 +451,7 @@ echo "[INFO] Spoofing script finished!"
       );
 
       var result = await _shell.run(
-        """adb shell su -c "chmod +x $changeDeviceInfoScriptPath && $changeDeviceInfoScriptPath\"""",
+        """adb shell su -c "chmod +x $changeDeviceInfoScriptPath ${Platform.isWindows ? ' ; ' : ' && '} $changeDeviceInfoScriptPath\"""",
       );
 
       String output = result.outText.trim();
@@ -478,7 +495,7 @@ echo "[INFO] Spoofing script finished!"
           serialNumber: serialNumber,
         );
       } else {
-        return _logError(serialNumber, result.outText, result.errText);
+        return _logSuccess(serialNumber, result.outText);
       }
     } catch (e) {
       return _logError(serialNumber, "Exception occurred", e.toString());
@@ -710,11 +727,7 @@ echo "[INFO] Spoofing script finished!"
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
-          command: InstallApkCommand("device_info"),
-          serialNumber: serialNumber,
-        ),
-        () => runCommand(
-          command: InstallApkCommand("link2sd"),
+          command: InstallApksCommand(["device_info","link2sd"]),
           serialNumber: serialNumber,
         ),
       ],
@@ -965,7 +978,7 @@ echo "[INFO] Spoofing script finished!"
           serialNumber: serialNumber,
         ),
         () => runCommand(
-          command: InstallApkCommand("edxposed-manager"),
+          command: InstallApksCommand(["edxposed-manager"]),
           serialNumber: serialNumber,
         ),
         () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
@@ -1293,7 +1306,7 @@ echo "[INFO] Spoofing script finished!"
         () => runCommand(
           command: CustomAdbCommand(
             command:
-            'shell "su -c\ ${_backUpService.getPhoneBackupScriptPath()} $tempPhoneBackupDir $joinedExcludePackages"'
+                'shell "su -c\ ${_backUpService.getPhoneBackupScriptPath()} $tempPhoneBackupDir $joinedExcludePackages"',
           ),
           serialNumber: serialNumber,
         ),
@@ -1342,6 +1355,10 @@ echo "[INFO] Spoofing script finished!"
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
+          command: ResetPhoneStateCommand(),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
           command: CustomAdbCommand(
             command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
           ),
@@ -1383,10 +1400,93 @@ echo "[INFO] Spoofing script finished!"
           ),
           serialNumber: serialNumber,
         ),
+        () => runCommand(
+          command: ClosePackageCommand(changeDevicePackage),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomCommand(
+            command:
+                "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
+          ),
+          serialNumber: serialNumber,
+        ),
       ],
       successMessage: "Restore successfully",
       serialNumber: serialNumber,
     );
+    return result.isLeft ? result.left : result.right;
+  }
+
+  Future<List<String>> _getDevicePackages({
+    required String serialNumber,
+    required GetPackagesCommand command,
+  }) async {
+    bool isUserPackagesOnly = command.isUserPackagesOnly;
+    final output = await runCommand(
+      command: CustomAdbCommand(
+        command: "shell pm list packages${isUserPackagesOnly ? " -3" : ""}",
+      ),
+      serialNumber: serialNumber,
+    );
+    return output.message
+        .split('\n') // Split by newline
+        .map((line) => line.trim()) // Trim whitespace
+        .where((line) => line.startsWith('package:')) // Filter valid lines
+        .map(
+          (line) => line.replaceFirst('package:', ''),
+        ) // Remove 'package:' prefix
+        .toList(); // Convert to list
+  }
+
+  Future<CommandResult> _pushAndRunScript({
+    required PushAndRunScriptCommand command,
+    required String serialNumber,
+  }) async {
+    var scriptName = command.scriptName;
+    var parameters = command.parameters;
+    Directory scriptDir = Directory(
+      p.join(Directory.current.path, "dependency", "scripts", scriptName),
+    );
+    if (!(await scriptDir.exists())) {
+      return CommandResult(
+        success: false,
+        message: "Script $scriptName not found",
+      );
+    }
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: scriptDir.path,
+            destinationPath: _backUpService.tempPhoneBackupDirPath,
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+                'su "chmod +x ${_backUpService.tempPhoneBackupDirPath}/$scriptName"',
+          ),
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command:
+                'su "${_backUpService.tempPhoneBackupDirPath}/$scriptName${parameters ?? ""}"',
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: ["${_backUpService.tempPhoneBackupDirPath}/$scriptName"],
+          ),
+          serialNumber: serialNumber,
+        ),
+      ],
+      successMessage: "Run script successfully",
+      serialNumber: serialNumber,
+    );
+
     return result.isLeft ? result.left : result.right;
   }
 }

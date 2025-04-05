@@ -50,7 +50,7 @@ rss/
 rss
 *.freezed.dart
 *.g.dart
-/apks/google_chrome.apk
+/file/apks/google_chrome.apk
 setup
-apks/
+file/apks/
 file/backup

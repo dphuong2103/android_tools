@@ -8,6 +8,7 @@ import 'package:android_tools/core/service/event_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
+import 'package:android_tools/features/home/presentation/cubit/install_apk_tab_cubit.dart';
 import 'package:android_tools/features/phone_details/domain/event.dart';
 import 'package:android_tools/features/phone_details/presentation/cubit/phone_details_cubit.dart';
 import 'package:android_tools/flavors.dart';
@@ -30,4 +31,5 @@ Future<void> init() async {
   sl.registerSingleton<HomeCubit>(HomeCubit());
   sl.registerFactory<PhoneDetailsCubit>(() => PhoneDetailsCubit());
   sl.registerFactory<EventService>(() => EventService());
+  sl.registerFactory<InstallApkTabCubit>(() => InstallApkTabCubit());
 }

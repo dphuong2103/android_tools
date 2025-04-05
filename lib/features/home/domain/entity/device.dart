@@ -1,4 +1,4 @@
-import 'package:android_tools/features/home/domain/entity/adb_device.dart';
+import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'device.freezed.dart';

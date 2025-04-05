@@ -1,7 +1,8 @@
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/features/home/presentation/screen/home_screen.dart';
 import 'package:android_tools/features/home/presentation/widget/backup_tab.dart';
-import 'package:android_tools/features/home/presentation/widget/change_info.dart';
+import 'package:android_tools/features/home/presentation/widget/change_device_info_tab.dart';
+import 'package:android_tools/features/home/presentation/widget/install_apk_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/logs.dart';
 import 'package:android_tools/features/login/presentation/screen/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +17,7 @@ final GlobalKey<NavigatorState> _homeShelfNavigatorKey =
 
 final GoRouter router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/home/logs', // Default route
+  initialLocation: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}', // Default route
   routes: [
     /// LOGIN ROUTE
     GoRoute(
@@ -39,15 +40,15 @@ final GoRouter router = GoRouter(
       routes: [
         /// Nested routes inside `HomeScreen`
         GoRoute(
-          path: '${RouteName.HOME}${RouteName.HOME_LOGS}',
+          path: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: Logs(),
+            child: InstallApkTab(),
           ),
         ),
         GoRoute(
           path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: ChangeDeviceInfo(),
+            child: ChangeDeviceInfoTab(),
           ),
         ),
         GoRoute(

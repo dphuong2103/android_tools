@@ -1,20 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'dart:ffi';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/event_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
-import 'package:android_tools/flavors.dart';
 import 'package:flutter/material.dart';
-import 'package:win32/win32.dart';
 import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/features/phone_details/domain/backup_folder.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:path/path.dart' as path;
-import 'package:ffi/ffi.dart';
 
 part 'phone_details_cubit.freezed.dart';
 
