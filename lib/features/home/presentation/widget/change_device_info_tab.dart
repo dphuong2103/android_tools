@@ -1,6 +1,5 @@
-import 'package:android_tools/core/util/device_info_util.dart';
+import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,8 +19,8 @@ class _ChangeDeviceInfoTabState extends State<ChangeDeviceInfoTab> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<HomeCubit, HomeState>(
-      listener: (BuildContext context, HomeState state) {},
+    return BlocConsumer<DeviceListCubit, DeviceListState>(
+      listener: (BuildContext context, DeviceListState state) {},
       builder: (context, state) {
         return FormBuilder(
           key: _formKey,
@@ -194,7 +193,7 @@ class _ChangeDeviceInfoTabState extends State<ChangeDeviceInfoTab> {
                   Gap(10),
                   ElevatedButton(
                     onPressed: () {
-                      context.read<HomeCubit>().executeCommandForSelectedDevices(
+                      context.read<DeviceListCubit>().executeCommandForSelectedDevices(
                         command: ChangeRandomDeviceInfoCommand(),
                       );
                     },

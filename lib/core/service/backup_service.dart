@@ -49,7 +49,7 @@ class BackUpService {
     return directory;
   }
 
-  String getSpecificTempPhoneBackupDir({required String backupName}) {
+  String getSpecificTempPhoneBackupPath({required String backupName}) {
     return "$tempPhoneBackupDirPath/$backupName";
   }
 

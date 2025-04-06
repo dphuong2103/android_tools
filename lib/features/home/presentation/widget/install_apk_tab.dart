@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
+import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/features/home/presentation/cubit/install_apk_tab_cubit.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:collection/collection.dart';
@@ -42,12 +42,12 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<HomeCubit, HomeState>(
+    return BlocConsumer<DeviceListCubit, DeviceListState>(
       listener: (context, state) {},
       builder:
           (
             homeContext,
-            homeState,
+            deviceListState,
           ) => BlocConsumer<InstallApkTabCubit, InstallApkTabState>(
             listener: (context, state) {},
             builder: (context, state) {
@@ -63,7 +63,7 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
                               state.isLoading
                                   ? null
                                   : () {
-                                    var hasSelectedDevice = homeState.devices
+                                    var hasSelectedDevice = deviceListState.devices
                                         .firstWhereOrNull(
                                           (device) => device.isSelected,
                                         );
@@ -97,7 +97,7 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
                                     }
 
                                     homeContext
-                                        .read<HomeCubit>()
+                                        .read<DeviceListCubit>()
                                         .executeCommandForSelectedDevices(
                                           command: InstallApksCommand(
                                             selectedApks
@@ -183,8 +183,7 @@ class _InstallApkTabViewState extends State<InstallApkTabView> {
                                   ],
                                 ),
                               )
-                              .toList() ??
-                          [],
+                              .toList(),
                     ),
                   ),
                   DropTarget(

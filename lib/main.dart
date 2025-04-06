@@ -1,10 +1,10 @@
 import 'dart:convert';
 
+import 'package:android_tools/core/device_list/device.dart';
 import 'package:android_tools/features/phone_details/presentation/screens/phone_details_screen.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'app.dart';
-import 'features/home/domain/entity/device.dart';
 import 'injection_container.dart' as di;
 
 void main(List<String> args) async {

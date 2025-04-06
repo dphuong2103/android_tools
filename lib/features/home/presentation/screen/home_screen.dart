@@ -3,11 +3,11 @@ import 'dart:math';
 import 'package:android_tools/core/constant/location_mapping.dart';
 import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/device_list/adb_device.dart';
+import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/core/sub_window/sub_window.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/home/presentation/widget/logs.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -36,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BlocProvider<HomeCubit>(
+      body: BlocProvider<DeviceListCubit>(
         create: (context) => sl()..init(),
         child: HomeView(child: widget.child),
       ),
@@ -85,7 +85,7 @@ class _HomeViewState extends State<HomeView>
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<HomeCubit, HomeState>(
+    return BlocConsumer<DeviceListCubit, DeviceListState>(
       listener: (context, state) {},
       builder: (context, state) {
         return Padding(
@@ -115,7 +115,7 @@ class _HomeViewState extends State<HomeView>
                       controller: _commandController,
                       suggestionsCallback:
                           (search) =>
-                              context.read<HomeCubit>().filterCommand(search),
+                              context.read<DeviceListCubit>().filterCommand(search),
                       builder: (context, controller, focusNode) {
                         return TextField(
                           controller: controller,
@@ -163,14 +163,14 @@ class _HomeViewState extends State<HomeView>
                       }
                       if (command.startsWith("RunScript")) {
                         var scriptName = context
-                            .read<HomeCubit>()
+                            .read<DeviceListCubit>()
                             .getValueInsideParentheses(_commandController.text);
                         if (scriptName == null || scriptName.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Add script Name")),
                           );
                         }
-                        if (!(await context.read<HomeCubit>().scriptExists(
+                        if (!(await context.read<DeviceListCubit>().scriptExists(
                           scriptName!,
                         ))) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -182,7 +182,7 @@ class _HomeViewState extends State<HomeView>
                       }
 
                       var adbCommand = await context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .parseCommand(command);
                       if (adbCommand.isLeft) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -191,7 +191,7 @@ class _HomeViewState extends State<HomeView>
                         return;
                       }
                       context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: adbCommand.right,
                           );
@@ -204,7 +204,7 @@ class _HomeViewState extends State<HomeView>
                         state.isConnectingAll
                             ? null
                             : () {
-                              context.read<HomeCubit>().connectAll();
+                              context.read<DeviceListCubit>().connectAll();
                             },
                     child: Text("Connect All"),
                   ),
@@ -215,7 +215,7 @@ class _HomeViewState extends State<HomeView>
                         state.isRefreshing
                             ? null
                             : () async {
-                              context.read<HomeCubit>().refresh();
+                              context.read<DeviceListCubit>().refresh();
                             },
                     onLongPress: null,
                   ),
@@ -234,7 +234,7 @@ class _HomeViewState extends State<HomeView>
                         );
                         return;
                       }
-                      context.read<HomeCubit>().showScreen();
+                      context.read<DeviceListCubit>().showScreen();
                     },
                     onLongPress: null,
                   ),
@@ -261,7 +261,7 @@ class _HomeViewState extends State<HomeView>
                         textCancel: const Text('No'),
                       )) {
                         if (context.mounted) {
-                          context.read<HomeCubit>().deleteDevices();
+                          context.read<DeviceListCubit>().deleteDevices();
                         }
                       }
                     },
@@ -275,7 +275,7 @@ class _HomeViewState extends State<HomeView>
                     icon: Icon(Icons.arrow_back_ios_new),
                     onPressed: () {
                       context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: KeyCommand("KEYCODE_BACK"),
                           );
@@ -286,7 +286,7 @@ class _HomeViewState extends State<HomeView>
                     icon: Icon(Icons.home),
                     onPressed: () {
                       context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: KeyCommand("KEYCODE_HOME"),
                           );
@@ -297,7 +297,7 @@ class _HomeViewState extends State<HomeView>
                     icon: Icon(Icons.menu),
                     onPressed: () {
                       context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: KeyCommand("KEYCODE_APP_SWITCH"),
                           );
@@ -399,7 +399,7 @@ class _HomeViewState extends State<HomeView>
                       }
 
                       await context
-                          .read<HomeCubit>()
+                          .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: ChangeGeoCommand(
                               latitude: location['lat']!,
@@ -431,7 +431,7 @@ class _HomeViewState extends State<HomeView>
                               minWidth: 1000,
                               isHorizontalScrollBarVisible: true,
                               onSelectAll: (bool? isSelectAll) {
-                                context.read<HomeCubit>().onSelectAll(
+                                context.read<DeviceListCubit>().onSelectAll(
                                   isSelectAll,
                                 );
                               },
@@ -499,7 +499,7 @@ class _HomeViewState extends State<HomeView>
                                           selected: device.isSelected,
                                           onSelectChanged: (bool? selected) {
                                             context
-                                                .read<HomeCubit>()
+                                                .read<DeviceListCubit>()
                                                 .onToggleDeviceSelection(
                                                   device.ip,
                                                   selected ?? false,
@@ -568,7 +568,7 @@ class _HomeViewState extends State<HomeView>
                                                     ),
                                                     onPressed: () {
                                                       // Handle edit action
-                                                      // context.read<HomeCubit>().editDevice(device);
+                                                      // context.read<DeviceListCubit>().editDevice(device);
                                                     },
                                                   ),
                                                 ],
@@ -604,7 +604,7 @@ class _HomeViewState extends State<HomeView>
                                             return;
                                           }
                                           if (await context
-                                              .read<HomeCubit>()
+                                              .read<DeviceListCubit>()
                                               .deviceExistsBySerial(value)) {
                                             ScaffoldMessenger.of(
                                               context,
@@ -619,7 +619,7 @@ class _HomeViewState extends State<HomeView>
                                           }
 
                                           var result = await context
-                                              .read<HomeCubit>()
+                                              .read<DeviceListCubit>()
                                               .addDevice(value);
                                           if (result.success) {
                                             ScaffoldMessenger.of(

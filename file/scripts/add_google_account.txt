@@ -1,5 +1,5 @@
 CloseApp(com.android.settings)
-CustomCommand(shell am start -a android.settings.ADD_ACCOUNT_SETTINGS)
+CustomCommand(adb shell am start -a android.settings.ADD_ACCOUNT_SETTINGS)
 wait(2)
 Tap(261 433)
 wait(5)

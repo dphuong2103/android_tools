@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:android_tools/core/service/command_service.dart';
-
 class DirectoryService {
   String backupScriptPath = "${Directory.current.path}/dependency/scripts/backup_phone.sh";
   String restoreScriptPath = "${Directory.current.path}/dependency/scripts/restore_phone.sh";

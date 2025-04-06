@@ -3,7 +3,6 @@ import 'package:android_tools/features/home/presentation/screen/home_screen.dart
 import 'package:android_tools/features/home/presentation/widget/backup_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/change_device_info_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/install_apk_tab.dart';
-import 'package:android_tools/features/home/presentation/widget/logs.dart';
 import 'package:android_tools/features/login/presentation/screen/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';

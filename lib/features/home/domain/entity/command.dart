@@ -1,24 +1,48 @@
+import 'package:android_tools/core/device_list/adb_device.dart';
+
 import 'device_info.dart';
 
+const List<DeviceConnectionStatus> allPhoneConnectedStatuses = [
+  DeviceConnectionStatus.booted,
+  DeviceConnectionStatus.fastboot,
+  DeviceConnectionStatus.recovery,
+  DeviceConnectionStatus.twrp,
+];
+
+const List<DeviceConnectionStatus> adbConnectedStatuses = [
+  DeviceConnectionStatus.booted,
+  DeviceConnectionStatus.recovery,
+  DeviceConnectionStatus.twrp,
+];
+
 sealed class Command {
-  const Command();
+  final List<DeviceConnectionStatus>? deviceConnectionStatuses;
+
+  const Command({
+    this.deviceConnectionStatuses = const [DeviceConnectionStatus.booted],
+  });
 
   @override
   String toString() => runtimeType.toString();
 }
 
-class ListDevicesCommand extends Command {}
+class ListDevicesCommand extends Command {
+  const ListDevicesCommand() : super(deviceConnectionStatuses: null);
+}
 
 class ConnectCommand extends Command {
   final String address;
 
-  const ConnectCommand(this.address);
+  const ConnectCommand(this.address) : super(deviceConnectionStatuses: null);
 
   @override
   String toString() => 'ConnectCommand(address: $address)';
 }
 
-class DisconnectCommand extends Command {}
+class DisconnectCommand extends Command {
+  const DisconnectCommand()
+    : super(deviceConnectionStatuses: allPhoneConnectedStatuses);
+}
 
 class TcpIpCommand extends Command {
   final int port;
@@ -155,13 +179,14 @@ class SetAlwaysOnCommand extends Command {
 }
 
 class RecoveryCommand extends Command {
-  const RecoveryCommand();
+  const RecoveryCommand()
+    : super(deviceConnectionStatuses: allPhoneConnectedStatuses);
 }
 
-class ClearAppsData extends Command {
+class ClearAppsDataCommand extends Command {
   final List<String> packages;
 
-  const ClearAppsData({required this.packages});
+  const ClearAppsDataCommand({required this.packages});
 }
 
 class ChangeRandomDeviceInfoCommand extends Command {
@@ -183,21 +208,24 @@ class ChangeDeviceInfoCommand extends Command {
 class RemoveFilesCommand extends Command {
   final List<String> filePaths;
 
-  const RemoveFilesCommand({required this.filePaths});
+  const RemoveFilesCommand({required this.filePaths})
+    : super(deviceConnectionStatuses: adbConnectedStatuses);
 }
 
 class PushFileCommand extends Command {
   final String sourcePath;
   final String destinationPath;
 
-  PushFileCommand({required this.sourcePath, required this.destinationPath});
+  PushFileCommand({required this.sourcePath, required this.destinationPath})
+    : super(deviceConnectionStatuses: adbConnectedStatuses);
 }
 
 class PullFileCommand extends Command {
   final String sourcePath;
   final String destinationPath;
 
-  PullFileCommand({required this.sourcePath, required this.destinationPath});
+  PullFileCommand({required this.sourcePath, required this.destinationPath})
+    : super(deviceConnectionStatuses: adbConnectedStatuses);
 }
 
 class SetOnGpsCommand extends Command {
@@ -261,7 +289,8 @@ class RunScriptCommand extends Command {
 class WaitCommand extends Command {
   final int delayInSecond;
 
-  const WaitCommand({required this.delayInSecond});
+  const WaitCommand({required this.delayInSecond})
+    : super(deviceConnectionStatuses: allPhoneConnectedStatuses);
 }
 
 class ChangeDeviceInfoRandomCommand extends Command {
@@ -279,6 +308,7 @@ class UninstallInitApkCommand extends Command {
 class BackupCommand extends Command {
   final String backupName;
   final List<String>? excludePackages;
+
   const BackupCommand({required this.backupName, this.excludePackages});
 }
 
@@ -304,20 +334,21 @@ class ChangeGeoCommand extends Command {
   });
 }
 
-class GetPackagesCommand extends Command{
+class GetPackagesCommand extends Command {
   final bool isUserPackagesOnly;
+
   const GetPackagesCommand({this.isUserPackagesOnly = false});
 }
 
-class ResetPhoneStateCommand extends Command{
- final List<String>? excludeApps;
- const ResetPhoneStateCommand({this.excludeApps});
+class ResetPhoneStateCommand extends Command {
+  final List<String>? excludeApps;
+
+  const ResetPhoneStateCommand({this.excludeApps});
 }
 
-class PushAndRunScriptCommand extends Command{
+class PushAndRunShellScriptCommand extends Command {
   final String scriptName;
   final String? parameters;
 
-  PushAndRunScriptCommand({required this.scriptName, this.parameters});
-
+  PushAndRunShellScriptCommand({required this.scriptName, this.parameters});
 }

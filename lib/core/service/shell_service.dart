@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:android_tools/core/logging/log_cubit.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/command_service.dart';
-import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:process_run/process_run.dart';
 

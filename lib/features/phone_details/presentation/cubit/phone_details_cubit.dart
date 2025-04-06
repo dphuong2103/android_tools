@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/event_service.dart';
-import 'package:android_tools/core/service/shell_service.dart';
 import 'package:flutter/material.dart';
 import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/features/phone_details/domain/backup_folder.dart';

@@ -45,8 +45,7 @@ class LogItem extends StatelessWidget {
       case LogType.DEBUG:
         return Colors.blue;
       case LogType.INFO:
-      default:
-        return Colors.green;
+      return Colors.green;
     }
   }
 }

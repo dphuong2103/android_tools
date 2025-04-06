@@ -85,9 +85,9 @@ class CommandService {
       return await _restorePhone(command: command, serialNumber: serialNumber);
     }
 
-    if (command is PushAndRunScriptCommand) {
+    if (command is PushAndRunShellScriptCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _pushAndRunScript(
+      return await _pushAndRunShellScript(
         command: command,
         serialNumber: serialNumber,
       );
@@ -221,7 +221,7 @@ class CommandService {
           "shell appops set $packageName android:mock_location allow",
           serialNumber,
         ),
-      ClearAppsData(packages: var packages) => packages
+      ClearAppsDataCommand(packages: var packages) => packages
           .map(
             (package) =>
                 _adbCommandWithSerial("shell pm clear $package", serialNumber),
@@ -467,7 +467,7 @@ echo "[INFO] Spoofing script finished!"
       if (result.first.exitCode == 0) {
         if (packagesToClear != null && packagesToClear.isNotEmpty) {
           await runCommand(
-            command: ClearAppsData(packages: packagesToClear),
+            command: ClearAppsDataCommand(packages: packagesToClear),
             serialNumber: serialNumber,
           );
         }
@@ -1265,9 +1265,10 @@ echo "[INFO] Spoofing script finished!"
       "com.midouz.change_phone.apk",
       "com.google.android.contactkeys",
       "com.google.android.safetycore.apk",
+      "com.google.ar.core"
     ]);
-    var joinedExcludePackages = excludePackages.join(" ") ?? "";
-    var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupDir(
+    var joinedExcludePackages = excludePackages.join(" ");
+    var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupPath(
       backupName: backupName,
     );
     var deviceLocalBackupDir = await _backUpService.getDeviceLocalBackupDir(
@@ -1349,9 +1350,18 @@ echo "[INFO] Spoofing script finished!"
       )).path,
       backupName,
     );
-    var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupDir(
+    var tempPhoneBackUpDir = Directory( _backUpService.getSpecificTempPhoneBackupPath(
+      backupName: backupName,
+    ));
+
+    if(!await tempPhoneBackUpDir.exists()){
+        return CommandResult(success: false, error: "Backup $backupName not exists for $serialNumber", message:  "Backup $backupName not exists for $serialNumber");
+    }
+
+    var tempPhoneBackupPath = _backUpService.getSpecificTempPhoneBackupPath(
       backupName: backupName,
     );
+
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
@@ -1387,7 +1397,7 @@ echo "[INFO] Spoofing script finished!"
         () => runCommand(
           command: CustomAdbCommand(
             command:
-                'shell su -c ${_backUpService.getPhoneRestoreScriptPath()} $tempPhoneBackupDir',
+                'shell su -c ${_backUpService.getPhoneRestoreScriptPath()} $tempPhoneBackupPath',
           ),
           serialNumber: serialNumber,
         ),
@@ -1395,7 +1405,7 @@ echo "[INFO] Spoofing script finished!"
           command: RemoveFilesCommand(
             filePaths: [
               _backUpService.getPhoneRestoreScriptPath(),
-              tempPhoneBackupDir,
+              tempPhoneBackupPath,
             ],
           ),
           serialNumber: serialNumber,
@@ -1439,8 +1449,8 @@ echo "[INFO] Spoofing script finished!"
         .toList(); // Convert to list
   }
 
-  Future<CommandResult> _pushAndRunScript({
-    required PushAndRunScriptCommand command,
+  Future<CommandResult> _pushAndRunShellScript({
+    required PushAndRunShellScriptCommand command,
     required String serialNumber,
   }) async {
     var scriptName = command.scriptName;
@@ -1489,4 +1499,5 @@ echo "[INFO] Spoofing script finished!"
 
     return result.isLeft ? result.left : result.right;
   }
+
 }

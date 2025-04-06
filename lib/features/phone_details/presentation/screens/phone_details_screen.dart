@@ -1,10 +1,10 @@
+import 'package:android_tools/core/device_list/device.dart';
+import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/util/date_util.dart';
 import 'package:android_tools/core/util/sub_window_util.dart';
 import 'package:android_tools/core/widget/sub_window_widget.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/domain/entity/device.dart';
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:android_tools/features/phone_details/presentation/cubit/phone_details_cubit.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:collection/collection.dart';
@@ -36,7 +36,7 @@ class PhoneDetailsScreen extends StatelessWidget {
           appBar: AppBar(title: Text(device.ip)),
           body: MultiBlocProvider(
             providers: [
-              BlocProvider<HomeCubit>(create: (context) => sl()),
+              BlocProvider<DeviceListCubit>(create: (context) => sl()),
               BlocProvider<PhoneDetailsCubit>(
                 create: (context) => sl()..init(serialNumber: device.ip),
                 // ..embedScrcpy(device.ip),
@@ -194,7 +194,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                   textCancel: const Text('No'),
                                 )) {
                                   if (context.mounted) {
-                                    context.read<HomeCubit>().executeCommand(
+                                    context.read<DeviceListCubit>().executeCommand(
                                       command: RestoreBackupCommand(
                                         backupName: selectedFolders.first.name,
                                       ),
@@ -345,8 +345,9 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                               onPressed: () {
                                 if (replayEventsScriptController.text
                                     .trim()
-                                    .isEmpty)
+                                    .isEmpty) {
                                   return;
+                                }
                                 context
                                     .read<PhoneDetailsCubit>()
                                     .replayEventFile(
