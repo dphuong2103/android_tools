@@ -352,3 +352,15 @@ class PushAndRunShellScriptCommand extends Command {
 
   PushAndRunShellScriptCommand({required this.scriptName, this.parameters});
 }
+
+class SetBrightnessCommand extends Command {
+  final int brightness;
+
+  const SetBrightnessCommand({required this.brightness});
+}
+
+class SetVolumeCommand extends Command {
+  final int volume;
+
+  const SetVolumeCommand({required this.volume});
+}

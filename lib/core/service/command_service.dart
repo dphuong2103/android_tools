@@ -267,6 +267,14 @@ class CommandService {
           ),
           serialNumber,
         ),
+      SetBrightnessCommand(brightness: var brightness) => _adbCommandWithSerial(
+        "shell settings put system screen_brightness $brightness",
+        serialNumber,
+      ),
+      SetVolumeCommand(volume: var volume) => _adbCommandWithSerial(
+        "shell media volume --stream 3 --set $volume",
+        serialNumber,
+      ),
       ResetPhoneStateCommand(excludeApps: var excludeApps) =>
         _adbCommandWithSerial(
           'shell am broadcast -a $resetPhoneStateBroadcast -p $changeDevicePackage',
@@ -727,7 +735,7 @@ echo "[INFO] Spoofing script finished!"
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
-          command: InstallApksCommand(["device_info","link2sd"]),
+          command: InstallApksCommand(["device_info", "link2sd"]),
           serialNumber: serialNumber,
         ),
       ],
@@ -1265,7 +1273,7 @@ echo "[INFO] Spoofing script finished!"
       "com.midouz.change_phone.apk",
       "com.google.android.contactkeys",
       "com.google.android.safetycore.apk",
-      "com.google.ar.core"
+      "com.google.ar.core",
     ]);
     var joinedExcludePackages = excludePackages.join(" ");
     var tempPhoneBackupDir = _backUpService.getSpecificTempPhoneBackupPath(
@@ -1350,12 +1358,16 @@ echo "[INFO] Spoofing script finished!"
       )).path,
       backupName,
     );
-    var tempPhoneBackUpDir = Directory( _backUpService.getSpecificTempPhoneBackupPath(
-      backupName: backupName,
-    ));
+    var tempPhoneBackUpDir = Directory(
+      _backUpService.getSpecificTempPhoneBackupPath(backupName: backupName),
+    );
 
-    if(!await tempPhoneBackUpDir.exists()){
-        return CommandResult(success: false, error: "Backup $backupName not exists for $serialNumber", message:  "Backup $backupName not exists for $serialNumber");
+    if (!await tempPhoneBackUpDir.exists()) {
+      return CommandResult(
+        success: false,
+        error: "Backup $backupName not exists for $serialNumber",
+        message: "Backup $backupName not exists for $serialNumber",
+      );
     }
 
     var tempPhoneBackupPath = _backUpService.getSpecificTempPhoneBackupPath(
@@ -1499,5 +1511,4 @@ echo "[INFO] Spoofing script finished!"
 
     return result.isLeft ? result.left : result.right;
   }
-
 }

@@ -2,6 +2,7 @@ import 'package:android_tools/core/router/route_name.dart';
 import 'package:android_tools/features/home/presentation/screen/home_screen.dart';
 import 'package:android_tools/features/home/presentation/widget/backup_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/change_device_info_tab.dart';
+import 'package:android_tools/features/home/presentation/widget/control_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/install_apk_tab.dart';
 import 'package:android_tools/features/login/presentation/screen/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -16,18 +17,25 @@ final GlobalKey<NavigatorState> _homeShelfNavigatorKey =
 
 final GoRouter router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}', // Default route
+  initialLocation: '${RouteName.HOME}${RouteName.HOME_CONTROL}',
+  // Default route
   routes: [
     /// LOGIN ROUTE
     GoRoute(
       path: RouteName.LOGIN,
-      pageBuilder: (context, state) => CustomTransitionPage(
-        key: state.pageKey,
-        child: LoginScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-      ),
+      pageBuilder:
+          (context, state) => CustomTransitionPage(
+            key: state.pageKey,
+            child: LoginScreen(),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
     ),
 
     /// SHELL ROUTE - Home Screen
@@ -39,22 +47,24 @@ final GoRouter router = GoRouter(
       routes: [
         /// Nested routes inside `HomeScreen`
         GoRoute(
+          path: '${RouteName.HOME}${RouteName.HOME_CONTROL}',
+          pageBuilder:
+              (context, state) => NoTransitionPage(child: ControlTab()),
+        ),
+        GoRoute(
           path: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: InstallApkTab(),
-          ),
+          pageBuilder:
+              (context, state) => NoTransitionPage(child: InstallApkTab()),
         ),
         GoRoute(
           path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: ChangeDeviceInfoTab(),
-          ),
+          pageBuilder:
+              (context, state) =>
+                  NoTransitionPage(child: ChangeDeviceInfoTab()),
         ),
         GoRoute(
           path: '${RouteName.HOME}${RouteName.HOME_BACKUP}',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: BackupTab(),
-          ),
+          pageBuilder: (context, state) => NoTransitionPage(child: BackupTab()),
         ),
       ],
     ),

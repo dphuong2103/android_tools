@@ -16,4 +16,5 @@ sealed class RouteName {
   static const String HOME_CHANGE_INFO ="/change_info";
   static const String HOME_BACKUP ="/backup";
   static const String HOME_INSTALL_APK ="/install_apk";
+  static const String HOME_CONTROL ="/control";
 }

@@ -104,7 +104,8 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   }
 
   Map<String, DeviceConnectionStatus> deviceListStatusMap(
-      List<AdbDevice> maps,) {
+    List<AdbDevice> maps,
+  ) {
     return Map.fromEntries(maps.map((e) => MapEntry(e.serialNumber, e.status)));
   }
 
@@ -120,13 +121,13 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     );
 
     final updatedDevices =
-    deviceList.map((device) {
-      return device.copyWith(
-        status:
-        deviceStatusMap[device.ip] ??
-            DeviceConnectionStatus.notDetected,
-      );
-    }).toList();
+        deviceList.map((device) {
+          return device.copyWith(
+            status:
+                deviceStatusMap[device.ip] ??
+                DeviceConnectionStatus.notDetected,
+          );
+        }).toList();
 
     // Emit the updated device list with their statuses
     emit(state.copyWith(devices: updatedDevices));
@@ -145,13 +146,13 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     );
 
     final updatedDevices =
-    deviceList.map((device) {
-      return device.copyWith(
-        status:
-        deviceStatusMap[device.ip] ??
-            DeviceConnectionStatus.notDetected,
-      );
-    }).toList();
+        deviceList.map((device) {
+          return device.copyWith(
+            status:
+                deviceStatusMap[device.ip] ??
+                DeviceConnectionStatus.notDetected,
+          );
+        }).toList();
 
     emit(state.copyWith(isRefreshing: false, devices: updatedDevices));
   }
@@ -202,17 +203,17 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
   void onSelectAll(bool? isSelectAll) {
     var devices =
-    state.devices
-        .map((d) => d.copyWith(isSelected: isSelectAll ?? false))
-        .toList();
+        state.devices
+            .map((d) => d.copyWith(isSelected: isSelectAll ?? false))
+            .toList();
     emit(state.copyWith(devices: devices));
   }
 
   void onToggleDeviceSelection(String ip, bool isSelected) {
     var devices =
-    state.devices.map((d) {
-      return d.ip == ip ? d.copyWith(isSelected: isSelected) : d;
-    }).toList();
+        state.devices.map((d) {
+          return d.ip == ip ? d.copyWith(isSelected: isSelected) : d;
+        }).toList();
     emit(state.copyWith(devices: devices));
   }
 
@@ -269,7 +270,9 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
     if (lowerCaseCommand.startsWith(runScriptCommand.toLowerCase())) {
       var scriptName = getValueInsideParentheses(command);
-      if (scriptName == null || scriptName.isEmpty) {
+      if (scriptName == null ||
+          scriptName.isEmpty ||
+          !await scriptExists(scriptName)) {
         _logCubit.log(
           title: "Error: ",
           message: "Invalid script name",
@@ -433,9 +436,9 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
     if (lowerCaseCommand.startsWith(setAlwaysOnCommand.toLowerCase())) {
       int? alwaysOn =
-      getValueInsideParentheses(command) != null
-          ? int.tryParse(getValueInsideParentheses(command)!)
-          : null;
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
       if (alwaysOn == null) {
         _logCubit.log(
           title: "Error: ",
@@ -453,9 +456,9 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
     if (lowerCaseCommand.startsWith(setOnGpsCommand.toLowerCase())) {
       int? isOn =
-      getValueInsideParentheses(command) != null
-          ? int.tryParse(getValueInsideParentheses(command)!)
-          : null;
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
       if (isOn == null) {
         _logCubit.log(
           title: "Error: ",
@@ -490,9 +493,9 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       setAllowMockLocationCommand.toLowerCase(),
     )) {
       int? isAllow =
-      getValueInsideParentheses(command) != null
-          ? int.tryParse(getValueInsideParentheses(command)!)
-          : null;
+          getValueInsideParentheses(command) != null
+              ? int.tryParse(getValueInsideParentheses(command)!)
+              : null;
       if (isAllow == null) {
         _logCubit.log(
           title: "Error: ",
@@ -637,37 +640,43 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
     // Update status to inProgress for selected devices
     var updatedDeviceSerialNumbers =
-    devices.map((device) => device.ip).toList();
+        devices.map((device) => device.ip).toList();
     emit(
       state.copyWith(
         devices:
-        state.devices.map((device) {
-          if (updatedDeviceSerialNumbers.contains(device.ip)) {
-            return device.copyWith(
-              commandStatus: DeviceCommandStatus.inProgress,
-            );
-          }
-          return device;
-        }).toList(),
+            state.devices.map((device) {
+              if (updatedDeviceSerialNumbers.contains(device.ip)) {
+                return device.copyWith(
+                  commandStatus: DeviceCommandStatus.inProgress,
+                );
+              }
+              return device;
+            }).toList(),
       ),
     );
 
     var deviceIps =
-    state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
+        state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
     List<CommandResult> results = [];
-    if (command is RestoreBackupCommand) {
-      results = await Future.wait(
-        deviceIps
-            .map(
-              (serialNumber) =>
-              restorePhone(
-                serialNumber: serialNumber,
-                name: command.backupName,
-              ),
-        )
-            .toList(),
+    if (command is RunScriptCommand) {
+      List<String>? scripts = await _textFileService.readData(
+        scriptPath(command.scriptName),
       );
+
+      for (var scriptCommand in scripts!) {
+        if (scriptCommand.startsWith("#") || scriptCommand.trim().isEmpty) {
+          continue;
+        }
+        var parsedCommandResult = await parseCommand(scriptCommand);
+        if (parsedCommandResult.isLeft) continue;
+        await executeCommand(
+          command: parsedCommandResult.right,
+          devices: devices,
+        );
+      }
+    } else if (command is WaitCommand) {
+      await Future.delayed(Duration(seconds: command.delayInSecond));
     } else {
       try {
         results = await _commandService.runCommandOnMultipleDevices(
@@ -686,23 +695,23 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     emit(
       state.copyWith(
         devices:
-        state.devices.map((device) {
-          if (!device.isSelected) return device;
+            state.devices.map((device) {
+              if (!device.isSelected) return device;
 
-          var result = results.firstWhereOrNull(
+              var result = results.firstWhereOrNull(
                 (r) => r.serialNumber == device.ip,
-          );
-          if (result == null) {
-            return device;
-          }
+              );
+              if (result == null) {
+                return device;
+              }
 
-          return device.copyWith(
-            commandStatus:
-            result.success
-                ? DeviceCommandStatus.success
-                : '${DeviceCommandStatus.failed}: ${result.message}',
-          );
-        }).toList(),
+              return device.copyWith(
+                commandStatus:
+                    result.success
+                        ? DeviceCommandStatus.success
+                        : '${DeviceCommandStatus.failed}: ${result.message}',
+              );
+            }).toList(),
       ),
     );
 
@@ -718,31 +727,32 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     emit(
       state.copyWith(
         devices:
-        state.devices.map((device) {
-          if (device.isSelected) {
-            return device.copyWith(
-              commandStatus:
-              "${DeviceCommandStatus.inProgress}: show screen",
-            );
-          }
-          return device;
-        }).toList(),
+            state.devices.map((device) {
+              if (device.isSelected) {
+                return device.copyWith(
+                  commandStatus:
+                      "${DeviceCommandStatus.inProgress}: show screen",
+                );
+              }
+              return device;
+            }).toList(),
       ),
     );
 
     _shellService.runScrcpyForMultipleDevices(
-        devices.map((d) => d.ip).toList());
+      devices.map((d) => d.ip).toList(),
+    );
     emit(
       state.copyWith(
         devices:
-        state.devices.map((device) {
-          if (device.isSelected) {
-            return device.copyWith(
-              commandStatus: "${DeviceCommandStatus.success}: show screen",
-            );
-          }
-          return device;
-        }).toList(),
+            state.devices.map((device) {
+              if (device.isSelected) {
+                return device.copyWith(
+                  commandStatus: "${DeviceCommandStatus.success}: show screen",
+                );
+              }
+              return device;
+            }).toList(),
       ),
     );
   }
@@ -761,7 +771,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
   Future<void> deleteDevices() async {
     var deviceSerials =
-    state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
+        state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
     _logCubit.log(title: "Deleting: ");
 
@@ -790,12 +800,12 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     emit(state.copyWith(isConnectingAll: true));
     try {
       var devices =
-      state.devices.where((device) => isValidIp(device.ip)).toList();
+          state.devices.where((device) => isValidIp(device.ip)).toList();
       var deviceSerials = devices.map((device) => device.ip).toList();
       List<Future<CommandResult>> tasks =
-      deviceSerials.map((deviceIp) async {
-        return await _commandService.connectOverTcpIp(deviceIp);
-      }).toList();
+          deviceSerials.map((deviceIp) async {
+            return await _commandService.connectOverTcpIp(deviceIp);
+          }).toList();
       await Future.wait(tasks);
     } finally {
       emit(state.copyWith(isConnectingAll: false));
@@ -839,7 +849,6 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     required String serialNumber,
     required String name,
   }) async {
-
     return _commandService.runCommand(
       command: RestoreBackupCommand(backupName: name),
       serialNumber: serialNumber,
@@ -880,7 +889,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
       // Calculate delay
       double delayMs =
-      lastTimestamp != null ? (timestamp - lastTimestamp) * 1000 : 0;
+          lastTimestamp != null ? (timestamp - lastTimestamp) * 1000 : 0;
       lastTimestamp = timestamp;
 
       // Schedule event execution
@@ -902,5 +911,4 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     await Future.wait(adbCommands);
     debugPrint("Replay finished!");
   }
-
 }
