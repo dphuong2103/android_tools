@@ -15,7 +15,9 @@ class ShellService {
 
   ShellService({required this.flavor, required this.logCubit});
 
-  Future<List<void>> runScrcpyForMultipleDevices(List<String> serialNumbers) async {
+  Future<List<void>> runScrcpyForMultipleDevices(
+    List<String> serialNumbers,
+  ) async {
     String scrcpyPath;
     if (flavor == Flavor.PROD) {
       scrcpyPath = p.join(
@@ -55,7 +57,6 @@ class ShellService {
     return await Future.wait(tasks);
   }
 
-
   Future<CommandResult> runScrcpy(String serialNumber) async {
     String scrcpyPath;
     if (flavor == Flavor.PROD) {
@@ -91,12 +92,15 @@ class ShellService {
     ]);
 
     if (process.exitCode == 0) {
-      return _logSuccess(serialNumber, process.stdout.toString());
+      return logSuccess(serialNumber, process.stdout.toString());
     } else {
-      return _logError(serialNumber, process.stdout.toString(), process.stderr.toString());
+      return logError(
+        serialNumber,
+        process.stdout.toString(),
+        process.stderr.toString(),
+      );
     }
   }
-
 
   bool _isConnectionError(String output) {
     return output.contains('cannot resolve host') ||
@@ -113,23 +117,23 @@ class ShellService {
       var result = await run();
       String output = result.outText.trim();
       if (_isConnectionError(output)) {
-        return _logError(
+        return logError(
           serialNumber,
           "Connection error detected.",
           result.errText,
         );
       }
       if (result.first.exitCode == 0) {
-        return _logSuccess(serialNumber, output);
+        return logSuccess(serialNumber, output);
       } else {
-        return _logError(serialNumber, result.outText, result.errText);
+        return logError(serialNumber, result.outText, result.errText);
       }
     } catch (e) {
-      return _logError(serialNumber, "Exception occurred", e.toString());
+      return logError(serialNumber, "Exception occurred", e.toString());
     }
   }
 
-  CommandResult _logError(String? serialNumber, String message, String? error) {
+  CommandResult logError(String? serialNumber, String message, String? error) {
     logCubit.log(
       title: "ADB Error for $serialNumber",
       message: "$message\n$error",
@@ -143,7 +147,7 @@ class ShellService {
     );
   }
 
-  CommandResult _logSuccess(String? serialNumber, String message) {
+  CommandResult logSuccess(String? serialNumber, String message) {
     logCubit.log(title: "ADB Success for $serialNumber", message: message);
     return CommandResult(
       success: true,
@@ -151,6 +155,5 @@ class ShellService {
       serialNumber: serialNumber,
     );
   }
-
 
 }

@@ -22,7 +22,7 @@ class ControlTab extends StatefulWidget {
 class _ControlTabState extends State<ControlTab> {
   late final TextEditingController _proxyIpController;
   late final TextEditingController _proxyPortController;
-  late final TextEditingController _geoController;
+  late final TextEditingController _searchGeoController;
   double _brightness = 50;
   int _volume = 7;
   String? selectedTimeZone;
@@ -33,8 +33,9 @@ class _ControlTabState extends State<ControlTab> {
     super.initState();
     _proxyIpController = TextEditingController();
     _proxyPortController = TextEditingController();
-    _geoController = TextEditingController();
+    _searchGeoController = TextEditingController();
     _getProxyInfoFromSharedPreferences();
+    _getGeoFromSharedPreferences();
   }
 
   @override
@@ -42,7 +43,7 @@ class _ControlTabState extends State<ControlTab> {
     super.dispose();
     _proxyIpController.dispose();
     _proxyPortController.dispose();
-    _geoController.dispose();
+    _searchGeoController.dispose();
   }
 
   Future<void> _getProxyInfoFromSharedPreferences() async {
@@ -54,6 +55,16 @@ class _ControlTabState extends State<ControlTab> {
     }
     if (proxyPort != null && proxyPort.isNotEmpty) {
       _proxyPortController.text = proxyPort;
+    }
+  }
+
+  Future<void> _getGeoFromSharedPreferences() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final geo = prefs.getString('geo');
+    if (geo != null && geo.isNotEmpty) {
+      setState(() {
+        selectedTimeZone = geo;
+      });
     }
   }
 
@@ -211,6 +222,9 @@ class _ControlTabState extends State<ControlTab> {
                         setState(() {
                           selectedTimeZone = value;
                         });
+                        SharedPreferences.getInstance().then((prefs) {
+                          prefs.setString('geo', value!);
+                        });
                       },
                       buttonStyleData: const ButtonStyleData(
                         padding: EdgeInsets.symmetric(horizontal: 16),
@@ -222,7 +236,7 @@ class _ControlTabState extends State<ControlTab> {
                       ),
                       menuItemStyleData: const MenuItemStyleData(height: 40),
                       dropdownSearchData: DropdownSearchData(
-                        searchController: _geoController,
+                        searchController: _searchGeoController,
                         searchInnerWidgetHeight: 50,
                         searchInnerWidget: Container(
                           height: 50,
@@ -235,7 +249,7 @@ class _ControlTabState extends State<ControlTab> {
                           child: TextFormField(
                             expands: true,
                             maxLines: null,
-                            controller: _geoController,
+                            controller: _searchGeoController,
                             decoration: InputDecoration(
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
@@ -257,7 +271,7 @@ class _ControlTabState extends State<ControlTab> {
                       //This to clear the search value when you close the menu
                       onMenuStateChange: (isOpen) {
                         if (!isOpen) {
-                          _geoController.clear();
+                          _searchGeoController.clear();
                         }
                       },
                     ),
@@ -367,6 +381,7 @@ class _ControlTabState extends State<ControlTab> {
               ),
             ],
           ),
+          Gap(50),
           _buildStateButtons(),
         ],
       ),

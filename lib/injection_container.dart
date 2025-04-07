@@ -12,13 +12,17 @@ import 'package:android_tools/features/home/presentation/cubit/install_apk_tab_c
 import 'package:android_tools/features/phone_details/presentation/cubit/phone_details_cubit.dart';
 import 'package:android_tools/flavors.dart';
 import 'package:get_it/get_it.dart';
+import 'package:process_run/process_run.dart';
 
 import 'core/device_list/device_list_cubit.dart';
 
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  sl.registerFactory<Shell>(()=>Shell());
+
   sl.registerSingleton<LogCubit>(LogCubit());
+  sl.registerFactory<EventService>(() => EventService());
 
   sl.registerFactory<CommandService>(() => CommandService());
   sl.registerSingleton<DatabaseService>(DatabaseService());
@@ -32,7 +36,6 @@ Future<void> init() async {
   sl.registerSingleton<DeviceListCubit>(DeviceListCubit());
   sl.registerSingleton<HomeCubit>(HomeCubit());
   sl.registerFactory<PhoneDetailsCubit>(() => PhoneDetailsCubit());
-  sl.registerFactory<EventService>(() => EventService());
   sl.registerFactory<InstallApkTabCubit>(() => InstallApkTabCubit());
 
 }

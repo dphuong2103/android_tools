@@ -19,5 +19,11 @@ CloseApp(packageName)
 SetAlwaysOn(0)
 Recovery
 ChangeDeviceInfoRandom
-
-shell am start -a android.settings.ADD_ACCOUNT_SETTINGS
+WaitRandom(min,max)
+ChangeDeviceInfoRandom
+OpenChPlayWithUrl(url)
+InputText(text)
+RemoveAppsData
+RemoveAppsData(package1,package2,)
+InstallApk(facebook)
+UninstallApps(com.facebook.lite,com.facebook.lite)

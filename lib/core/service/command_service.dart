@@ -1,13 +1,17 @@
 import 'dart:io';
+import 'dart:math';
 
+import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:android_tools/core/logging/log_model.dart';
 import 'package:android_tools/core/service/apk_file_service.dart';
 import 'package:android_tools/core/service/backup_service.dart';
+import 'package:android_tools/core/service/event_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
+import 'package:collection/collection.dart';
 import 'package:either_dart/either.dart';
 import 'package:intl/intl.dart';
 import 'package:process_run/shell.dart';
@@ -20,12 +24,14 @@ class CommandResult {
   final bool success;
   final String message;
   final String? error;
+  dynamic payload;
 
   CommandResult({
     required this.success,
     required this.message,
     this.error,
     this.serialNumber,
+    this.payload,
   });
 
   @override
@@ -47,6 +53,7 @@ class CommandService {
   final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
   final BackUpService _backUpService = sl();
+  final EventService _eventService = sl();
 
   Future<CommandResult> runCommand({
     required Command command,
@@ -93,6 +100,43 @@ class CommandService {
       );
     }
 
+    if (command is WaitCommand) {
+      await Future.delayed(Duration(seconds: command.delayInSecond));
+      return CommandResult(
+        success: true,
+        message: "Waited for ${command.delayInSecond} seconds",
+        serialNumber: serialNumber,
+      );
+    }
+
+    if (command is WaitRandomCommand) {
+      var random = Random();
+      var delayInSecond =
+          random.nextInt(command.maxDelayInSecond - command.minDelayInSecond) +
+          command.minDelayInSecond;
+      await Future.delayed(Duration(seconds: delayInSecond));
+      return CommandResult(
+        success: true,
+        message: "Waited for $delayInSecond seconds",
+        serialNumber: serialNumber,
+      );
+    }
+
+    if (command is GetSpoofedDeviceInfoCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return _getSpoofedDeviceInfo(serialNumber: serialNumber);
+    }
+
+    if (command is GetSpoofedGeoCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return _getSpoofedGeo(serialNumber: serialNumber);
+    }
+
+    if (command is ReplayTraceCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return _replayTraceScript(serialNumber: serialNumber, command: command);
+    }
+
     String fullCommand = _buildCommand(command, serialNumber, port);
 
     logCubit.log(
@@ -128,10 +172,6 @@ class CommandService {
       ),
       ClosePackageCommand(packageName: var pkg) => _adbCommandWithSerial(
         'shell am force-stop $pkg',
-        serialNumber,
-      ),
-      WithoutShellCommand(command: var cmd) => _adbCommandWithSerial(
-        cmd,
         serialNumber,
       ),
       TapCommand(x: var x, y: var y) => _adbCommandWithSerial(
@@ -215,28 +255,12 @@ class CommandService {
         "reboot recovery",
         serialNumber,
       ),
-
-      SetMockLocationPackageCommand(packageName: var packageName) =>
-        _adbCommandWithSerial(
-          "shell appops set $packageName android:mock_location allow",
-          serialNumber,
-        ),
       ClearAppsDataCommand(packages: var packages) => packages
           .map(
             (package) =>
                 _adbCommandWithSerial("shell pm clear $package", serialNumber),
           )
           .join(Platform.isWindows ? ' ; ' : ' && '),
-      SetAllowMockLocationCommand(isAllow: var isAllow) =>
-        _adbCommandWithSerial(
-          "shell settings put secure mock_location ${isAllow ? 1 : 0}",
-          serialNumber,
-        ),
-      SetMockLocationCommand(latitude: var lat, longitude: var lon) =>
-        _adbCommandWithSerial(
-          """shell am start -a android.intent.action.VIEW -d 'geo:$lat,$lon'""",
-          serialNumber,
-        ),
       OpenChPlayWithUrlCommand(url: var url) => _adbCommandWithSerial(
         'shell am start -a android.intent.action.VIEW -d "$url"',
         serialNumber,
@@ -444,69 +468,6 @@ echo "[INFO] Spoofing script finished!"
         type: LogType.ERROR,
       );
       return null;
-    }
-  }
-
-  Future<CommandResult> _changeDeviceInfoOld({
-    List<String>? packagesToClear,
-    required DeviceInfo deviceInfo,
-    required String serialNumber,
-  }) async {
-    try {
-      var changeDeviceInfoScriptPath = await _buildAndPushChangeInfoScript(
-        serialNumber: serialNumber,
-        deviceInfo: deviceInfo,
-      );
-
-      var result = await _shell.run(
-        """adb shell su -c "chmod +x $changeDeviceInfoScriptPath ${Platform.isWindows ? ' ; ' : ' && '} $changeDeviceInfoScriptPath\"""",
-      );
-
-      String output = result.outText.trim();
-
-      if (_isConnectionError(output)) {
-        return _logError(
-          serialNumber,
-          "Connection error detected.",
-          result.errText,
-        );
-      }
-
-      if (result.first.exitCode == 0) {
-        if (packagesToClear != null && packagesToClear.isNotEmpty) {
-          await runCommand(
-            command: ClearAppsDataCommand(packages: packagesToClear),
-            serialNumber: serialNumber,
-          );
-        }
-
-        // Delete data of device
-        // var deleteDataScriptSourcePath =
-        //     "./dependency/scripts/remove_data_script.sh";
-        // var deleteDataScriptTargetPath =
-        //     "/data/local/tmp/remove_data_script.sh";
-        //
-        // await _runCommand(
-        //   command: PushFileCommand(
-        //     deleteDataScriptSourcePath,
-        //     deleteDataScriptTargetPath,
-        //   ),
-        //   serialNumber: serialNumber,
-        // );
-        //
-        // await _shell.run(
-        //   """adb shell su -c "chmod +x $deleteDataScriptTargetPath && $deleteDataScriptTargetPath\"""",
-        // );
-
-        return await runCommand(
-          command: RebootCommand(),
-          serialNumber: serialNumber,
-        );
-      } else {
-        return _logSuccess(serialNumber, result.outText);
-      }
-    } catch (e) {
-      return _logError(serialNumber, "Exception occurred", e.toString());
     }
   }
 
@@ -1510,5 +1471,124 @@ echo "[INFO] Spoofing script finished!"
     );
 
     return result.isLeft ? result.left : result.right;
+  }
+
+  Future<CommandResult> _getSpoofedDeviceInfo({
+    required String serialNumber,
+  }) async {
+    var phoneSpoofedDeviceInfoPath =
+        "/data/local/tmp/spoof/spoofed_device_info.properties";
+    var result = await runCommand(
+      command: CustomAdbCommand(
+        command: "shell cat $phoneSpoofedDeviceInfoPath",
+      ),
+    );
+    if (!result.success) {
+      return result;
+    }
+
+    return CommandResult(
+      success: true,
+      message: result.message,
+      serialNumber: serialNumber,
+      payload: _parseDeviceInfoFromAdbOutput(result.message),
+    );
+  }
+
+  Future<CommandResult> _getSpoofedGeo({required String serialNumber}) async {
+    var phoneSpoofedDeviceInfoPath =
+        "/data/local/tmp/spoof/spoofed_geo.properties";
+    var result = await runCommand(
+      command: CustomAdbCommand(
+        command: "shell cat $phoneSpoofedDeviceInfoPath",
+      ),
+    );
+    if (!result.success) {
+      return result;
+    }
+
+    return CommandResult(
+      success: true,
+      message: result.message,
+      serialNumber: serialNumber,
+      payload: _parseGeoFromAdbOutput(result.message),
+    );
+  }
+
+  DeviceInfo _parseDeviceInfoFromAdbOutput(String adbOutput) {
+    // Split the output into lines and filter out comments and empty lines
+    final lines =
+        adbOutput
+            .split('\n')
+            .where((line) => line.trim().isNotEmpty && !line.startsWith('#'))
+            .toList();
+
+    // Create a map from the key-value pairs
+    final properties = Map.fromEntries(
+      lines.map((line) {
+        final parts = line.split('=');
+        if (parts.length == 2) {
+          return MapEntry(parts[0].trim(), parts[1].trim());
+        }
+        return null;
+      }).whereType<MapEntry<String, String>>(),
+    );
+
+    // Map the properties to DeviceInfo
+    return DeviceInfo(
+      model: properties['model'] ?? '',
+      brand: properties['brand'] ?? '',
+      manufacturer: properties['manufacturer'] ?? '',
+      serialNo: properties['serial'] ?? '',
+      device: properties['device'] ?? '',
+      productName: properties['product'] ?? '',
+      releaseVersion: properties['release'] ?? '',
+      sdkVersion: properties['sdk'] ?? '',
+      fingerprint: properties['fingerprint'] ?? '',
+      androidId: properties['android_id'] ?? '',
+      imei: properties['imei'] ?? '',
+      advertisingId: properties['ad_id'],
+      ssid: properties['ssid'],
+      macAddress: properties['mac_address'],
+      height:
+          properties['height'] != null
+              ? int.tryParse(properties['height']!)
+              : null,
+      width:
+          properties['width'] != null
+              ? int.tryParse(properties['width']!)
+              : null,
+    );
+  }
+
+  String? _parseGeoFromAdbOutput(String adbOutput) {
+    final lines =
+        adbOutput
+            .split('\n')
+            .where((line) => line.trim().isNotEmpty && !line.startsWith('#'))
+            .toList();
+
+    final properties = Map.fromEntries(
+      lines.map((line) {
+        final parts = line.split('=');
+        if (parts.length == 2) {
+          return MapEntry(parts[0].trim(), parts[1].trim());
+        }
+        return null;
+      }).whereType<MapEntry<String, String>>(),
+    );
+    var timezoneName = properties["time_zone"];
+
+    if (timezoneName == null) return null;
+    return timezoneMap.keys.firstWhereOrNull(
+      (k) => timezoneMap[k] == timezoneName,
+    );
+  }
+
+  Future<CommandResult> _replayTraceScript({
+    required String serialNumber,
+    required ReplayTraceCommand command,
+  }) {
+    return _eventService.replayEvents(shell: Shell(), serialNumber: serialNumber, replayScriptName: command.traceScriptName);
   }
 }

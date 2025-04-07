@@ -8,6 +8,7 @@ import 'package:android_tools/core/service/database_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
+import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
 import 'package:collection/collection.dart';
@@ -32,6 +33,7 @@ const closeAppCommand = "CloseApp";
 const runScriptCommand = "RunScript";
 const tapCommand = "Tap";
 const waitCommand = "Wait";
+const waitRandomCommand = "WaitRandom";
 const swipeCommand = "Swipe";
 const installApkCommand = "InstallApk";
 const uninstallAppsCommand = "UninstallApps";
@@ -46,16 +48,15 @@ const setAlwaysOnCommand = "SetAlwaysOn";
 const recoveryCommand = "Recovery";
 const changeDeviceInfoRandomCommand = "ChangeDeviceInfoRandom";
 const setOnGpsCommand = "SetOnGpsCommand";
-const setMockGpsPackageCommand = "SetMockGpsPackage";
-const setAllowMockLocationCommand = "SetAllowMockLocation";
-const setMockLocationCommand = "SetMockLocation";
-const defaultLocationMockPackage = "com.lexa.fakegps";
 const setUpCommand = "SetUp";
 const uninstallInitApkCommand = "UninstallInitApk";
 const removeAppsDataCommand = "RemoveAppsData";
 const openChPlayWithUrlCommand = "OpenChPlayWithUrl";
 const inputTextCommand = "InputText";
 const pullCommand = "Pull";
+const getSpoofedDeviceInfoCommand = "GetSpoofedDeviceInfo";
+const getSpoofedGeoCommand = "GetSpoofedGeo";
+const replayTraceScriptCommand = "ReplayTraceScriptCommand";
 
 class DeviceListCubit extends Cubit<DeviceListState> {
   DeviceListCubit() : super(const DeviceListState());
@@ -81,15 +82,16 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     recoveryCommand,
     changeDeviceInfoRandomCommand,
     setOnGpsCommand,
-    setMockGpsPackageCommand,
-    setAllowMockLocationCommand,
-    setMockLocationCommand,
     setUpCommand,
     uninstallInitApkCommand,
     removeAppsDataCommand,
     inputTextCommand,
     openChPlayWithUrlCommand,
     pullCommand,
+    waitRandomCommand,
+    getSpoofedDeviceInfoCommand,
+    getSpoofedGeoCommand,
+    replayTraceScriptCommand
   ];
 
   final CommandService _commandService = sl();
@@ -120,12 +122,48 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       adbDeviceList,
     );
 
-    final updatedDevices =
+    var updatedDevices =
         deviceList.map((device) {
           return device.copyWith(
             status:
                 deviceStatusMap[device.ip] ??
                 DeviceConnectionStatus.notDetected,
+          );
+        }).toList();
+
+    final connectedDevice =
+        deviceList.where((device) {
+          return deviceStatusMap[device.ip] == DeviceConnectionStatus.booted ||
+              deviceStatusMap[device.ip] == DeviceConnectionStatus.twrp ||
+              deviceStatusMap[device.ip] == DeviceConnectionStatus.recovery;
+        }).toList();
+
+    var spoofedDeviceInfoResult = await _commandService
+        .runCommandOnMultipleDevices(
+          command: GetSpoofedDeviceInfoCommand(),
+          deviceSerials: connectedDevice.map((d) => d.ip).toList(),
+        );
+
+    var spoofedDeviceInfoMap = Map.fromEntries(
+      spoofedDeviceInfoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
+    var spoofedGeoResult = await _commandService.runCommandOnMultipleDevices(
+      command: GetSpoofedGeoCommand(),
+      deviceSerials: connectedDevice.map((d) => d.ip).toList(),
+    );
+    var spoofedGeoMap = Map.fromEntries(
+      spoofedGeoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
+    // Update the device list with the spoofed device info and geo
+    updatedDevices =
+        updatedDevices.map((device) {
+          var spoofedDeviceInfo = spoofedDeviceInfoMap[device.ip];
+          var geo = spoofedGeoMap[device.ip];
+          return device.copyWith(
+            spoofedDeviceInfo: spoofedDeviceInfo,
+            geo: geo,
           );
         }).toList();
 
@@ -136,6 +174,12 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   Future<void> refresh() async {
     emit(state.copyWith(isRefreshing: true));
     var deviceList = state.devices;
+    final connectedDevices =
+        deviceList.where((device) {
+          return device.status == DeviceConnectionStatus.booted ||
+              device.status == DeviceConnectionStatus.twrp ||
+              device.status == DeviceConnectionStatus.recovery;
+        }).toList();
     if (deviceList.isEmpty) {
       return;
     }
@@ -145,12 +189,41 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       adbDeviceList,
     );
 
-    final updatedDevices =
+    var updatedDevices =
         deviceList.map((device) {
           return device.copyWith(
             status:
                 deviceStatusMap[device.ip] ??
                 DeviceConnectionStatus.notDetected,
+          );
+        }).toList();
+
+    var spoofedDeviceInfoResult = await _commandService
+        .runCommandOnMultipleDevices(
+          command: GetSpoofedDeviceInfoCommand(),
+          deviceSerials: connectedDevices.map((d) => d.ip).toList(),
+        );
+
+    var spoofedDeviceInfoMap = Map.fromEntries(
+      spoofedDeviceInfoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
+    var spoofedGeoResult = await _commandService.runCommandOnMultipleDevices(
+      command: GetSpoofedGeoCommand(),
+      deviceSerials: connectedDevices.map((d) => d.ip).toList(),
+    );
+    var spoofedGeoMap = Map.fromEntries(
+      spoofedGeoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
+    // Update the device list with the spoofed device info and geo
+    updatedDevices =
+        updatedDevices.map((device) {
+          var spoofedDeviceInfo = spoofedDeviceInfoMap[device.ip];
+          var geo = spoofedGeoMap[device.ip];
+          return device.copyWith(
+            spoofedDeviceInfo: spoofedDeviceInfo,
+            geo: geo,
           );
         }).toList();
 
@@ -358,6 +431,28 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       }
       return Right(WaitCommand(delayInSecond: delayInSecond));
     }
+    if (lowerCaseCommand.startsWith(waitRandomCommand.toLowerCase())) {
+      int? minDelayInSecond = int.tryParse(
+        getValueInsideParentheses(command)?.split(",")[0] ?? "0",
+      );
+      int? maxDelayInSecond = int.tryParse(
+        getValueInsideParentheses(command)?.split(",")[1] ?? "0",
+      );
+      if (minDelayInSecond == null || maxDelayInSecond == null) {
+        _logCubit.log(
+          title: "Error: ",
+          message: "Invalid delay time",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid delay time (time must be in seconds)");
+      }
+      return Right(
+        WaitRandomCommand(
+          minDelayInSecond: minDelayInSecond,
+          maxDelayInSecond: maxDelayInSecond,
+        ),
+      );
+    }
 
     if (lowerCaseCommand.startsWith(installApkCommand.toLowerCase())) {
       String? apkName = getValueInsideParentheses(command);
@@ -473,61 +568,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     if (lowerCaseCommand.startsWith(
       changeDeviceInfoRandomCommand.toLowerCase(),
     )) {
-      return Right(ChangeDeviceInfoRandomCommand());
-    }
-
-    if (lowerCaseCommand.startsWith(setMockGpsPackageCommand.toLowerCase())) {
-      String? packageName = getValueInsideParentheses(command);
-      if (packageName == null || packageName.isEmpty) {
-        _logCubit.log(
-          title: "Error: ",
-          message: "Invalid package name",
-          type: LogType.ERROR,
-        );
-        return Left("Invalid package name");
-      }
-      return Right(SetMockLocationPackageCommand(packageName: packageName));
-    }
-
-    if (lowerCaseCommand.startsWith(
-      setAllowMockLocationCommand.toLowerCase(),
-    )) {
-      int? isAllow =
-          getValueInsideParentheses(command) != null
-              ? int.tryParse(getValueInsideParentheses(command)!)
-              : null;
-      if (isAllow == null) {
-        _logCubit.log(
-          title: "Error: ",
-          message: "Invalid value (0 or 1)",
-          type: LogType.ERROR,
-        );
-        return Left("Invalid value (0 or 1)");
-      }
-      return Right(
-        SetAllowMockLocationCommand(isAllow: isAllow == 0 ? false : true),
-      );
-    }
-
-    if (lowerCaseCommand.startsWith(setMockLocationCommand.toLowerCase())) {
-      String? value = getValueInsideParentheses(command);
-      double? lon;
-      double? lat;
-      if (value?.split(" ")[0] != null) {
-        lon = double.tryParse(value!.split(" ")[0])!;
-      }
-      if (value?.split(" ")[1] != null) {
-        lat = double.tryParse(value!.split(" ")[1])!;
-      }
-      if (lon == null || lat == null) {
-        _logCubit.log(
-          title: "Error: ",
-          message: "Invalid lat or lon",
-          type: LogType.ERROR,
-        );
-        return Left("Invalid lat or lon");
-      }
-      return Right(SetMockLocationCommand(longitude: lon, latitude: lat));
+      return Right(ChangeRandomDeviceInfoCommand());
     }
 
     if (lowerCaseCommand.startsWith(setUpCommand.toLowerCase())) {
@@ -603,6 +644,12 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       return Right(OpenChPlayWithUrlCommand(url: url));
     }
 
+    if (lowerCaseCommand.startsWith(
+      getSpoofedDeviceInfoCommand.toLowerCase(),
+    )) {
+      return Right(GetSpoofedDeviceInfoCommand());
+    }
+
     if (lowerCaseCommand.startsWith(pullCommand.toLowerCase())) {
       String? path = getValueInsideParentheses(command);
       String? source = path?.split(" ")[0];
@@ -620,6 +667,23 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       }
       return Right(
         PullFileCommand(sourcePath: source, destinationPath: destination),
+      );
+    }
+
+    if (lowerCaseCommand.startsWith(replayTraceScriptCommand.toLowerCase())) {
+      String? scriptName = getValueInsideParentheses(command);
+      if (scriptName == null || scriptName.isEmpty) {
+        _logCubit.log(
+          title: "Error: ",
+          message: "Invalid script name $scriptName",
+          type: LogType.ERROR,
+        );
+        return Left("Invalid script name: $scriptName");
+      }
+      return Right(
+        ReplayTraceCommand(
+          traceScriptName: scriptName,
+        ),
       );
     }
 
@@ -675,8 +739,6 @@ class DeviceListCubit extends Cubit<DeviceListState> {
           devices: devices,
         );
       }
-    } else if (command is WaitCommand) {
-      await Future.delayed(Duration(seconds: command.delayInSecond));
     } else {
       try {
         results = await _commandService.runCommandOnMultipleDevices(

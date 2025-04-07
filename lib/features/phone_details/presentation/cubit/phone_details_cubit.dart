@@ -10,6 +10,7 @@ import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:path/path.dart' as path;
+import 'package:process_run/process_run.dart';
 
 part 'phone_details_cubit.freezed.dart';
 
@@ -24,6 +25,7 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   final DirectoryService _directoryService = sl();
   final CommandService _commandService = sl();
   final EventService _eventService = sl();
+  final Shell _shell = sl();
 
   Future<void> init({required String serialNumber}) async {
     List<BackUpFolder> backUpFolders = [];
@@ -97,55 +99,16 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
     emit(state.copyWith(backUpFolders: newBackUpFolders));
   }
 
-
   Future<void> startRecordingEvents({
     required String serialNumber,
     required String eventsScriptName,
   }) async {
     if (state.isRecordingEvents) return;
-
-    _eventsScriptName = eventsScriptName.trim();
-    _eventService.getEventScriptDir();
-    final eventScriptPath = _eventService.getEventScriptPath(
-      eventsScriptName: eventsScriptName,
-    );
-    debugPrint("Event script path: $eventScriptPath");
-
     try {
-      // Start the adb process without shell redirection
-      _recordingProcess = await Process.start('adb', [
-        '-s',
-        serialNumber,
-        'shell',
-        'getevent',
-        '-t',
-      ], mode: ProcessStartMode.normal);
-
-      // Open the file for writing
-      final file = File(eventScriptPath).openWrite();
-
-      // Capture and write stdout to the file
-      _recordingProcess!.stdout
-          .transform(utf8.decoder)
-          .listen(
-            (data) {
-              debugPrint("Captured event data: $data"); // Debug the output
-              file.write(data); // Write to file
-            },
-            onError: (error) {
-              debugPrint("Stream error: $error");
-            },
-            onDone: () {
-              debugPrint("Stream closed, finalizing file...");
-              file.close(); // Ensure the file is closed when done
-            },
-          );
-
-      // Log stderr for debugging
-      _recordingProcess!.stderr.transform(utf8.decoder).listen((data) {
-        debugPrint("Process error: $data");
-      });
-
+      _eventService.startRecordingEvents(
+        serialNumber: serialNumber,
+        traceFileName: eventsScriptName,
+      );
       emit(state.copyWith(isRecordingEvents: true));
     } catch (e) {
       debugPrint("Error starting recording: $e");
@@ -153,32 +116,24 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   }
 
   Future<void> stopRecordingEvents() async {
-    if (_recordingProcess == null ||
-        _eventsScriptName == null ||
-        _eventsScriptName!.trim().isEmpty) {
-      return;
-    }
+    if (!state.isRecordingEvents) return;
     try {
-      _recordingProcess?.kill(ProcessSignal.sigint); // Send Ctrl+C equivalent
-      await _recordingProcess?.exitCode; // Wait for the process to exit
-      _recordingProcess = null;
+      await _eventService.stopRecordEvents();
       emit(state.copyWith(isRecordingEvents: false));
-      await _eventService.convertEventFileToScript(_eventsScriptName!);
-      debugPrint("Recording stopped successfully");
-
     } catch (e) {
       debugPrint("Error stopping recording: $e");
     }
   }
 
-  Future<void> replayEventFile({
+  Future<void> replayEventFile2({
     required String eventsScriptName,
     required String serialNumber,
   }) async {
     try {
-      await _eventService.playEventsOnAndroid(
+      await _eventService.replayEvents(
+        shell: _shell,
         serialNumber: serialNumber,
-        eventsScriptName: eventsScriptName,
+        replayScriptName: eventsScriptName,
       );
     } catch (e) {
       debugPrint("Error replaying events: $e");
@@ -193,11 +148,11 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
     return await _commandService.flashMagisk(serialNumber: serialNumber);
   }
 
-  Future<CommandResult> installApks({required String serialNumber}) async{
+  Future<CommandResult> installApks({required String serialNumber}) async {
     return await _commandService.installInitApks(serialNumber: serialNumber);
   }
 
-  Future<CommandResult>  flashGApp({required String serialNumber}) async{
+  Future<CommandResult> flashGApp({required String serialNumber}) async {
     return await _commandService.flashGApp(serialNumber: serialNumber);
   }
 
@@ -205,7 +160,7 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
     return await _commandService.flashTwrp(serialNumber: serialNumber);
   }
 
-  Future<CommandResult> installEdXposed({required String serialNumber})async {
+  Future<CommandResult> installEdXposed({required String serialNumber}) async {
     return await _commandService.installEdXposed(serialNumber: serialNumber);
   }
 }

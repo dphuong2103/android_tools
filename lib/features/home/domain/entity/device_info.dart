@@ -29,6 +29,29 @@ class DeviceInfo with _$DeviceInfo {
       _$DeviceInfoFromJson(json);
 }
 
+extension DeviceInfoPrettyPrint on DeviceInfo {
+  String customToString() {
+    return '''
+Model: $model
+Brand: $brand
+Manufacturer: $manufacturer
+SerialNo: $serialNo
+Device: $device
+ProductName: $productName
+ReleaseVersion: $releaseVersion
+SdkVersion: $sdkVersion
+Fingerprint: $fingerprint
+AndroidId: $androidId
+IMEI: $imei
+AdvertisingId: ${advertisingId ?? 'N/A'}
+SSID: ${ssid ?? 'N/A'}
+MacAddress: ${macAddress ?? 'N/A'}
+Height: ${height ?? 'N/A'}
+Width: ${width ?? 'N/A'}
+''';
+  }
+}
+
 final List<DeviceInfo> deviceInfoList = [
   // Xiaomi Mi A1 (Original Device)
   DeviceInfo(

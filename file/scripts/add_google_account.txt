@@ -6,6 +6,7 @@ wait(10)
 Tap(307 821)
 wait(1)
 InputText(dphuong2103@gmail.com)
-Tap(139 1050)
-wait(1)
-RunScript(2)
+KeyCode_ENTER
+wait(10)
+InputText(dphuong2103@gmail.com)
+KeyCode_ENTER

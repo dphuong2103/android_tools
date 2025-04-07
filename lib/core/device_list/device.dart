@@ -1,3 +1,4 @@
+import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'adb_device.dart';
@@ -20,6 +21,7 @@ class Device with _$Device {
     @Default(false) bool isSelected,
     String? commandStatus,
     String? geo,
+    DeviceInfo? spoofedDeviceInfo,
   }) = _Device;
 
   factory Device.fromJson(Map<String, dynamic> json) => _$DeviceFromJson(json);

@@ -350,7 +350,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                 }
                                 context
                                     .read<PhoneDetailsCubit>()
-                                    .replayEventFile(
+                                    .replayEventFile2(
                                       serialNumber: widget.device.ip,
                                       eventsScriptName:
                                           replayEventsScriptController.text
