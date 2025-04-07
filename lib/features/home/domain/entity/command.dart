@@ -425,9 +425,9 @@ class RecordEventsCommand extends Command {
       : super(description: "Records device events (user's action)");
 }
 
-class ReplayTraceCommand extends Command{
+class ReplayTraceScriptCommand extends Command{
   final String traceScriptName;
 
-  const ReplayTraceCommand({required this.traceScriptName})
+  const ReplayTraceScriptCommand({required this.traceScriptName})
       : super(description: "Replays recorded trace script");
 }

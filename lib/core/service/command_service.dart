@@ -132,7 +132,7 @@ class CommandService {
       return _getSpoofedGeo(serialNumber: serialNumber);
     }
 
-    if (command is ReplayTraceCommand) {
+    if (command is ReplayTraceScriptCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _replayTraceScript(serialNumber: serialNumber, command: command);
     }
@@ -1587,7 +1587,7 @@ echo "[INFO] Spoofing script finished!"
 
   Future<CommandResult> _replayTraceScript({
     required String serialNumber,
-    required ReplayTraceCommand command,
+    required ReplayTraceScriptCommand command,
   }) {
     return _eventService.replayEvents(shell: Shell(), serialNumber: serialNumber, replayScriptName: command.traceScriptName);
   }

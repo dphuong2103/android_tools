@@ -681,7 +681,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
         return Left("Invalid script name: $scriptName");
       }
       return Right(
-        ReplayTraceCommand(
+        ReplayTraceScriptCommand(
           traceScriptName: scriptName,
         ),
       );
