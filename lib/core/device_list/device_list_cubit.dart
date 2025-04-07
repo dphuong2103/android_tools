@@ -313,7 +313,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     }
 
     if (lowerCaseCommand.startsWith(fastbootCommand.toLowerCase())) {
-      return Right(RebootBootLoaderCommand());
+      return Right(FastbootCommand());
     }
 
     if (lowerCaseCommand.startsWith(openAppCommand.toLowerCase())) {
@@ -905,16 +905,6 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     required Command command,
   }) {
     return executeCommand(command: command, devices: getSelectedDevices());
-  }
-
-  Future<CommandResult> restorePhone({
-    required String serialNumber,
-    required String name,
-  }) async {
-    return _commandService.runCommand(
-      command: RestoreBackupCommand(backupName: name),
-      serialNumber: serialNumber,
-    );
   }
 
   List<Device> getSelectedDevices() {

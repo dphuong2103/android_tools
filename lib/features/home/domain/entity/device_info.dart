@@ -275,22 +275,6 @@ final List<DeviceInfo> deviceInfoList = [
   ),
 
   // Huawei P40 Lite
-  DeviceInfo(
-    model: "JNY-LX1",
-    brand: "Huawei",
-    manufacturer: "Huawei",
-    serialNo: "",
-    device: "JNY",
-    productName: "JNY",
-    releaseVersion: "10",
-    sdkVersion: "29",
-    fingerprint: "Huawei/JNY-LX1/JNY:10/HUAWEIJNY-LX1/10.0.0.185:user/release-keys",
-    androidId: "",
-    imei: "",
-    width: 1080,
-    height: 2310,
-  ),
-
   // Oppo A72
   DeviceInfo(
     model: "CPH2067",

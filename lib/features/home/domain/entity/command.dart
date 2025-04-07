@@ -158,9 +158,9 @@ class RebootCommand extends Command {
       : super(description: "Reboots the device");
 }
 
-class RebootBootLoaderCommand extends Command {
-  const RebootBootLoaderCommand()
-      : super(description: "Reboots device into bootloader mode");
+class FastbootCommand extends Command {
+  const FastbootCommand()
+      : super(description: "Reboots device into fastboot mode");
 }
 
 class ChangeTimeZoneCommand extends Command {

@@ -109,7 +109,7 @@ class _BackupTabState extends State<BackupTab> {
                     if (_restoreNameController.text.trim().isNotEmpty) {
                       context.read<DeviceListCubit>().executeCommandForSelectedDevices(
                         command: RestoreBackupCommand(
-                          backupName: _restoreNameController.text,
+                          backupName: _restoreNameController.text.trim(),
                         ),
                       );
                     }

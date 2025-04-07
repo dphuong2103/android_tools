@@ -74,6 +74,10 @@ class _ControlTabState extends State<ControlTab> {
           [
                 ButtonState(text: "Reboot", command: RebootCommand()),
                 ButtonState(text: "Twrp/Recovery", command: RecoveryCommand()),
+                ButtonState(
+                  text: "Fastboot",
+                  command: FastbootCommand(),
+                ),
               ]
               .map(
                 (buttonState) => TextButton(

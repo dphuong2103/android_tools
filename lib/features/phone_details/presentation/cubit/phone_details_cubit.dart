@@ -19,8 +19,6 @@ part 'phone_details_state.dart';
 class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   PhoneDetailsCubit() : super(const PhoneDetailsState());
 
-  Process? _recordingProcess;
-  String? _eventsScriptName;
 
   final DirectoryService _directoryService = sl();
   final CommandService _commandService = sl();

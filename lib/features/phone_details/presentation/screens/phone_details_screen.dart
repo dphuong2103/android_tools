@@ -434,7 +434,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                         ),
                         Gap(10),
                         if(status != null)
-                          Text(status!),
+                          SelectableText(status!),
                       ],
                     ),
                   ),
