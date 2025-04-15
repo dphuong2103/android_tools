@@ -160,8 +160,10 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                               },
                               icon: Icon(Icons.delete, color: Colors.red),
                             ),
-                            IconButton(
+                            ElevatedButton(
+                              child: const Text("Restore"),
                               onPressed: () async {
+
                                 var selectedFolders =
                                     state.backUpFolders
                                         ?.where((folder) => folder.isSelected)
@@ -174,6 +176,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                   );
                                   return;
                                 }
+
                                 if (selectedFolders.length > 1) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -184,6 +187,8 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                   );
                                   return;
                                 }
+
+
                                 if (await confirm(
                                   context,
                                   title: const Text('Confirm Backup'),
@@ -194,16 +199,15 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                   textCancel: const Text('No'),
                                 )) {
                                   if (context.mounted) {
-                                    context.read<DeviceListCubit>().executeCommand(
+                                    context.read<DeviceListCubit>().executeCommandForMultipleDevices(
                                       command: RestoreBackupCommand(
                                         backupName: selectedFolders.first.name,
                                       ),
-                                      devices: [widget.device],
+                                      serialNumbers: [widget.device.ip],
                                     );
                                   }
                                 }
                               },
-                              icon: Icon(Icons.restore, color: Colors.green),
                             ),
                           ],
                         ),
@@ -328,6 +332,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                             ),
                           ],
                         ),
+                        Gap(10),
                         Row(
                           children: [
                             SizedBox(

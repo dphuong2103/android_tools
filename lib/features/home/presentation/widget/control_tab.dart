@@ -4,7 +4,6 @@ import 'package:android_tools/core/constant/location_mapping.dart';
 import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/presentation/cubit/home_cubit.dart';
 import 'package:collection/collection.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +22,7 @@ class _ControlTabState extends State<ControlTab> {
   late final TextEditingController _proxyIpController;
   late final TextEditingController _proxyPortController;
   late final TextEditingController _searchGeoController;
+  bool _isAlwaysOn = false;
   double _brightness = 50;
   int _volume = 7;
   String? selectedTimeZone;
@@ -117,93 +117,107 @@ class _ControlTabState extends State<ControlTab> {
               border: Border.all(color: Colors.black26),
             ),
             padding: const EdgeInsets.only(left: 10),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _proxyIpController,
-                    decoration: InputDecoration(
-                      labelText: 'Proxy IP',
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                VerticalDivider(color: Colors.black, thickness: 2),
-                SizedBox(
-                  width: 60,
-                  child: TextField(
-                    controller: _proxyPortController,
-                    decoration: InputDecoration(
-                      labelText: 'Port',
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (_proxyIpController.text.trim().isEmpty ||
-                        _proxyPortController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please enter proxy info"),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _proxyIpController,
+                        decoration: InputDecoration(
+                          labelText: 'Proxy IP',
+                          border: InputBorder.none,
                         ),
-                      );
-                      return;
-                    }
-                    var devices =
+                      ),
+                    ),
+                    VerticalDivider(color: Colors.black, thickness: 2),
+                    SizedBox(
+                      width: 60,
+                      child: TextField(
+                        controller: _proxyPortController,
+                        decoration: InputDecoration(
+                          labelText: 'Port',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        if (_proxyIpController.text.trim().isEmpty ||
+                            _proxyPortController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please enter proxy info"),
+                            ),
+                          );
+                          return;
+                        }
+                        var devices =
                         context.read<DeviceListCubit>().getSelectedDevices();
-                    if (devices.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please select at least 1 device"),
-                        ),
-                      );
-                      return;
-                    }
-                    await context
-                        .read<DeviceListCubit>()
-                        .executeCommandForSelectedDevices(
+                        if (devices.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please select at least 1 device"),
+                            ),
+                          );
+                          return;
+                        }
+                        // await context
+                        //     .read<DeviceListCubit>()
+                        //     .executeCommandForSelectedDevices(
+                        //   command: SetWifiProxyCommand(
+                        //     wifi: _wifiController.text.trim(),
+                        //     ip: _proxyIpController.text.trim(),
+                        //     port: _proxyPortController.text.trim(),
+                        //   ),
+                        // );
+                        await context
+                            .read<DeviceListCubit>()
+                            .executeCommandForSelectedDevices(
                           command: SetProxyCommand(
                             ip: _proxyIpController.text.trim(),
                             port: _proxyPortController.text.trim(),
                           ),
                         );
-                    SharedPreferences prefs =
+                        SharedPreferences prefs =
                         await SharedPreferences.getInstance();
-                    prefs.setString('proxyIp', _proxyIpController.text.trim());
-                    prefs.setString(
-                      'proxyPort',
-                      _proxyPortController.text.trim(),
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Set proxy success")),
-                    );
-                  },
-                  child: Text("Set"),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    var devices =
+                        prefs.setString('proxyIp', _proxyIpController.text.trim());
+                        prefs.setString(
+                          'proxyPort',
+                          _proxyPortController.text.trim(),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Set proxy success")),
+                        );
+                      },
+                      child: Text("Set"),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        var devices =
                         context.read<DeviceListCubit>().getSelectedDevices();
-                    if (devices.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please select at least 1 device"),
-                        ),
-                      );
-                      return;
-                    }
-                    await context
-                        .read<DeviceListCubit>()
-                        .executeCommandForSelectedDevices(
+                        if (devices.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please select at least 1 device"),
+                            ),
+                          );
+                          return;
+                        }
+                        await context
+                            .read<DeviceListCubit>()
+                            .executeCommandForSelectedDevices(
                           command: RemoveProxyCommand(),
                         );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Remove proxy success")),
-                    );
-                  },
-                  child: Text("Remove"),
-                ),
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Remove proxy success")),
+                        );
+                      },
+                      child: Text("Remove"),
+                    ),
+                  ],
+                )
               ],
             ),
           ),
@@ -384,6 +398,28 @@ class _ControlTabState extends State<ControlTab> {
                 ),
               ),
             ],
+          ),
+          Row(
+            children:[
+              Text("Always on"),
+              Transform.scale(
+                scale: 0.7,
+                child: Switch(
+                  value: _isAlwaysOn,
+                  onChanged: (value) async {
+                    setState(() {
+                      _isAlwaysOn = value;
+                    });
+                    context
+                        .read<DeviceListCubit>()
+                        .executeCommandForSelectedDevices(
+                      command: SetAlwaysOnCommand(value: value ? 1 : 0),
+                    );
+
+                  },
+                ),
+              ),
+            ]
           ),
           Gap(50),
           _buildStateButtons(),

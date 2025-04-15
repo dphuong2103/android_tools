@@ -34,7 +34,7 @@ FAILURES=""
 
 # Create backup subdirectories
 echo "Preparing backup directory: $BACKUP_DIR..."
-for dir in apks data obb external spoof; do
+for dir in apks data obb external spoof sessions; do
     if ! mkdir -p "$BACKUP_DIR/$dir" 2>/dev/null; then
         echo "Error: Failed to create $BACKUP_DIR/$dir"
         exit 1
@@ -134,6 +134,26 @@ if [ -d "/data/local/tmp/spoof" ]; then
     log_result $? "Backed up /data/local/tmp/spoof"
 else
     echo "Spoof folder not found at /data/local/tmp/spoof"
+fi
+
+# Backup account sessions (Google and other system accounts)
+echo "Backing up account sessions..."
+ACCOUNT_PACKAGES="com.google.android.gms com.google.android.gsf com.android.vending"
+for pkg in $ACCOUNT_PACKAGES; do
+    if [ -d "/data/data/$pkg" ]; then
+        tar -czf "$BACKUP_DIR/sessions/$pkg.tar.gz" -C /data/data "$pkg" 2>/dev/null
+        log_result $? "Backed up session data for $pkg"
+    else
+        echo "No session data directory found for $pkg"
+    fi
+done
+
+# Backup system account database
+if [ -f "/data/system/users/0/accounts.db" ]; then
+    cp "/data/system/users/0/accounts.db" "$BACKUP_DIR/sessions/accounts.db" 2>/dev/null
+    log_result $? "Backed up system accounts database"
+else
+    echo "System accounts database not found"
 fi
 
 # Provide summary

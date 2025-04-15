@@ -1,4 +1,6 @@
 import 'package:android_tools/core/router/route_name.dart';
+import 'package:android_tools/core/widget/scaffold_with_nav_bar.dart';
+import 'package:android_tools/features/backup/presentation/screens/backup_screen.dart';
 import 'package:android_tools/features/home/presentation/screen/home_screen.dart';
 import 'package:android_tools/features/home/presentation/widget/backup_tab.dart';
 import 'package:android_tools/features/home/presentation/widget/change_device_info_tab.dart';
@@ -12,103 +14,68 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
 );
 
-final GlobalKey<NavigatorState> _homeShelfNavigatorKey =
-    GlobalKey<NavigatorState>();
-
 final GoRouter router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '${RouteName.HOME}${RouteName.HOME_CONTROL}',
-  // Default route
+  initialLocation: '${RouteName.HOME}${RouteName.HOME_CONTROL}', // Updated to "MAIN"
+  debugLogDiagnostics: true,
   routes: [
-    /// LOGIN ROUTE
+    // Standalone Login Route
     GoRoute(
       path: RouteName.LOGIN,
-      pageBuilder:
-          (context, state) => CustomTransitionPage(
-            key: state.pageKey,
-            child: LoginScreen(),
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const LoginScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
     ),
 
-    /// SHELL ROUTE - Home Screen
-    ShellRoute(
-      navigatorKey: _homeShelfNavigatorKey,
-      builder: (context, state, child) {
-        return HomeScreen(child: child);
+    // Tabbed Navigation Shell
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) {
+        return ScaffoldWithNavBar(navigationShell: navigationShell);
       },
-      routes: [
-        /// Nested routes inside `HomeScreen`
-        GoRoute(
-          path: '${RouteName.HOME}${RouteName.HOME_CONTROL}',
-          pageBuilder:
-              (context, state) => NoTransitionPage(child: ControlTab()),
+      branches: [
+        // MAIN BRANCH (formerly HOME)
+        StatefulShellBranch(
+          routes: [
+            ShellRoute(
+              builder: (context, state, child) {
+                return HomeScreen(child: child); // Wraps the sub-tabs
+              },
+              routes: [
+                GoRoute(
+                  path: '${RouteName.HOME}${RouteName.HOME_CONTROL}',
+                  pageBuilder: (context, state) => NoTransitionPage(child: ControlTab()),
+                ),
+                GoRoute(
+                  path: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}',
+                  pageBuilder: (context, state) => NoTransitionPage(child: InstallApkTab()),
+                ),
+                GoRoute(
+                  path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
+                  pageBuilder: (context, state) => NoTransitionPage(child: ChangeDeviceInfoTab()),
+                ),
+                GoRoute(
+                  path: '${RouteName.HOME}${RouteName.HOME_BACKUP}',
+                  pageBuilder: (context, state) => NoTransitionPage(child: BackupTab()),
+                ),
+              ],
+            ),
+          ],
         ),
-        GoRoute(
-          path: '${RouteName.HOME}${RouteName.HOME_INSTALL_APK}',
-          pageBuilder:
-              (context, state) => NoTransitionPage(child: InstallApkTab()),
-        ),
-        GoRoute(
-          path: '${RouteName.HOME}${RouteName.HOME_CHANGE_INFO}',
-          pageBuilder:
-              (context, state) =>
-                  NoTransitionPage(child: ChangeDeviceInfoTab()),
-        ),
-        GoRoute(
-          path: '${RouteName.HOME}${RouteName.HOME_BACKUP}',
-          pageBuilder: (context, state) => NoTransitionPage(child: BackupTab()),
+
+        // BACKUP BRANCH
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: RouteName.BACK_UP, // e.g., '/backup'
+              pageBuilder: (context, state) => NoTransitionPage(child: BackupScreen()),
+            ),
+          ],
         ),
       ],
     ),
   ],
 );
-
-GoRoute _buildRouteWithDefaultTransition({
-  required String path,
-  String? name,
-  GlobalKey<NavigatorState>? parentNavigatorKey,
-  GoRouterRedirect? redirect,
-  List<RouteBase>? routes,
-  required Widget Function(BuildContext, GoRouterState) pageBuilder,
-}) {
-  return GoRoute(
-    path: path,
-    name: name,
-    routes: routes ?? [],
-    parentNavigatorKey: parentNavigatorKey,
-    redirect: redirect,
-    pageBuilder:
-        (context, state) => CustomTransitionPage<void>(
-          key: state.pageKey,
-          transitionDuration: const Duration(milliseconds: 300),
-          child: pageBuilder(context, state),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation.drive(
-                Tween<double>(
-                  begin: 0.0,
-                  end: 1.0,
-                ).chain(CurveTween(curve: Curves.easeInOut)),
-              ),
-              child: ScaleTransition(
-                scale: animation.drive(
-                  Tween<double>(
-                    begin: 0.95,
-                    end: 1.0,
-                  ).chain(CurveTween(curve: Curves.easeOutBack)),
-                ),
-                child: child,
-              ),
-            );
-          },
-        ),
-  );
-}

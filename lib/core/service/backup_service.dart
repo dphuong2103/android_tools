@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 class BackUpService {
+  String rootBackupFolder =
+      p.join(Directory.current.path, "file", "backup");
+
   String backupScriptPath = p.join(
     Directory.current.path,
     "dependency",
@@ -28,8 +31,6 @@ class BackUpService {
     "restore_phone.sh",
   );
 
-  // "${Directory.current.path}/dependency/scripts/restore_phone.sh";
-
   Directory getDeviceBackUpDirectory({required String serialNumber}) {
     // "${Directory.current.path}/file/backup/$serialNumber"
     return Directory(
@@ -41,7 +42,7 @@ class BackUpService {
     required String serialNumber,
   }) async {
     var directory = Directory(
-      p.join(Directory.current.path, "file", "backup", serialNumber),
+      p.join(rootBackupFolder, serialNumber),
     );
     if (!await directory.exists()) {
       await directory.create(recursive: true);

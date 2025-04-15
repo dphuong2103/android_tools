@@ -8,7 +8,6 @@ import 'package:android_tools/core/service/database_service.dart';
 import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/service/text_file_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
-import 'package:android_tools/features/home/domain/entity/device_info.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
 import 'package:collection/collection.dart';
@@ -91,7 +90,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     waitRandomCommand,
     getSpoofedDeviceInfoCommand,
     getSpoofedGeoCommand,
-    replayTraceScriptCommand
+    replayTraceScriptCommand,
   ];
 
   final CommandService _commandService = sl();
@@ -156,14 +155,25 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       spoofedGeoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
     );
 
+    var proxyResult = await _commandService.runCommandOnMultipleDevices(
+      command: GetProxyCommand(),
+      deviceSerials: connectedDevice.map((d) => d.ip).toList(),
+    );
+
+    var proxyMap = Map.fromEntries(
+      proxyResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
     // Update the device list with the spoofed device info and geo
     updatedDevices =
         updatedDevices.map((device) {
           var spoofedDeviceInfo = spoofedDeviceInfoMap[device.ip];
           var geo = spoofedGeoMap[device.ip];
+          var proxy = proxyMap[device.ip];
           return device.copyWith(
             spoofedDeviceInfo: spoofedDeviceInfo,
             geo: geo,
+            proxy: proxy,
           );
         }).toList();
 
@@ -216,14 +226,25 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       spoofedGeoResult.map((e) => MapEntry(e.serialNumber, e.payload)),
     );
 
+    var proxyResult = await _commandService.runCommandOnMultipleDevices(
+      command: GetProxyCommand(),
+      deviceSerials: connectedDevices.map((d) => d.ip).toList(),
+    );
+
+    var proxyMap = Map.fromEntries(
+      proxyResult.map((e) => MapEntry(e.serialNumber, e.payload)),
+    );
+
     // Update the device list with the spoofed device info and geo
     updatedDevices =
         updatedDevices.map((device) {
           var spoofedDeviceInfo = spoofedDeviceInfoMap[device.ip];
           var geo = spoofedGeoMap[device.ip];
+          var proxy = proxyMap[device.ip];
           return device.copyWith(
             spoofedDeviceInfo: spoofedDeviceInfo,
             geo: geo,
+            proxy: proxy,
           );
         }).toList();
 
@@ -680,11 +701,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
         );
         return Left("Invalid script name: $scriptName");
       }
-      return Right(
-        ReplayTraceScriptCommand(
-          traceScriptName: scriptName,
-        ),
-      );
+      return Right(ReplayTraceScriptCommand(traceScriptName: scriptName));
     }
 
     _logCubit.log(
@@ -696,20 +713,17 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     return Left("Invalid command");
   }
 
-  Future<List<CommandResult>> executeCommand({
+  Future<List<CommandResult>> executeCommandForMultipleDevices({
     required Command command,
-    required List<Device> devices,
+    required List<String> serialNumbers,
   }) async {
     _logCubit.log(title: "Run Command: ", message: command.toString());
 
-    // Update status to inProgress for selected devices
-    var updatedDeviceSerialNumbers =
-        devices.map((device) => device.ip).toList();
     emit(
       state.copyWith(
         devices:
             state.devices.map((device) {
-              if (updatedDeviceSerialNumbers.contains(device.ip)) {
+              if (serialNumbers.contains(device.ip)) {
                 return device.copyWith(
                   commandStatus: DeviceCommandStatus.inProgress,
                 );
@@ -734,9 +748,9 @@ class DeviceListCubit extends Cubit<DeviceListState> {
         }
         var parsedCommandResult = await parseCommand(scriptCommand);
         if (parsedCommandResult.isLeft) continue;
-        await executeCommand(
+        await executeCommandForMultipleDevices(
           command: parsedCommandResult.right,
-          devices: devices,
+          serialNumbers: serialNumbers,
         );
       }
     } else {
@@ -754,28 +768,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       }
     }
 
-    emit(
-      state.copyWith(
-        devices:
-            state.devices.map((device) {
-              if (!device.isSelected) return device;
-
-              var result = results.firstWhereOrNull(
-                (r) => r.serialNumber == device.ip,
-              );
-              if (result == null) {
-                return device;
-              }
-
-              return device.copyWith(
-                commandStatus:
-                    result.success
-                        ? DeviceCommandStatus.success
-                        : '${DeviceCommandStatus.failed}: ${result.message}',
-              );
-            }).toList(),
-      ),
-    );
+    updateDeviceStatusFromResults(results);
 
     return results;
   }
@@ -904,7 +897,10 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   Future<List<CommandResult>> executeCommandForSelectedDevices({
     required Command command,
   }) {
-    return executeCommand(command: command, devices: getSelectedDevices());
+    return executeCommandForMultipleDevices(
+      command: command,
+      serialNumbers: getSelectedDevices().map((d) => d.ip).toList(),
+    );
   }
 
   List<Device> getSelectedDevices() {
@@ -962,5 +958,38 @@ class DeviceListCubit extends Cubit<DeviceListState> {
 
     await Future.wait(adbCommands);
     debugPrint("Replay finished!");
+  }
+
+  Future<CommandResult> restorePhone({
+    required String serialNumber,
+    required RestoreBackupCommand command,
+  }) async {
+    return await _commandService.runCommand(
+      command: command,
+      serialNumber: serialNumber,
+    );
+  }
+
+  void updateDeviceStatusFromResults(List<CommandResult> results) {
+    emit(
+      state.copyWith(
+        devices:
+            state.devices.map((device) {
+              var result = results.firstWhereOrNull(
+                (r) => r.serialNumber == device.ip,
+              );
+              if (result == null) {
+                return device;
+              }
+
+              return device.copyWith(
+                commandStatus:
+                    result.success
+                        ? DeviceCommandStatus.success
+                        : '${DeviceCommandStatus.failed}: ${result.message}',
+              );
+            }).toList(),
+      ),
+    );
   }
 }

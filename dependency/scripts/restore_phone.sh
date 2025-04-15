@@ -139,6 +139,51 @@ else
     echo "Spoof backup not found in $BACKUP_DIR/spoof/"
 fi
 
+# Restore account sessions
+echo "Restoring account sessions..."
+SESSION_FOUND=0
+ACCOUNT_PACKAGES="com.google.android.gms com.google.android.gsf com.android.vending"
+for pkg in $ACCOUNT_PACKAGES; do
+    tarball="$BACKUP_DIR/sessions/$pkg.tar.gz"
+    if [ -f "$tarball" ]; then
+        SESSION_FOUND=1
+        echo "Restoring session data for: $pkg"
+        tar -xzf "$tarball" -C /data/data 2>/dev/null
+        if [ $? -eq 0 ]; then
+            # Get UID after installation
+            uid=$(pm list packages -U | grep "$pkg" | cut -d: -f3)
+            if [ -n "$uid" ]; then
+                chown -R "$uid":"$uid" "/data/data/$pkg" 2>/dev/null
+                chmod 700 "/data/data/$pkg" 2>/dev/null
+                find "/data/data/$pkg" -type f -exec chmod 600 {} \; 2>/dev/null
+                chcon -R u:object_r:app_data_file:s0 "/data/data/$pkg" 2>/dev/null
+                log_result 0 "Restored session data for $pkg (UID: $uid)"
+            else
+                log_result 0 "Restored session data for $pkg (UID not found, ownership not set)"
+            fi
+        else
+            log_result 1 "Failed to extract session data for $pkg"
+        fi
+    fi
+done
+
+# Restore system accounts database
+if [ -f "$BACKUP_DIR/sessions/accounts.db" ]; then
+    mkdir -p /data/system/users/0 2>/dev/null || log_result 1 "Failed to create /data/system/users/0"
+    cp "$BACKUP_DIR/sessions/accounts.db" "/data/system/users/0/accounts.db" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        chown system:system "/data/system/users/0/accounts.db" 2>/dev/null
+        chmod 660 "/data/system/users/0/accounts.db" 2>/dev/null
+        chcon u:object_r:system_data_file:s0 "/data/system/users/0/accounts.db" 2>/dev/null
+        log_result 0 "Restored system accounts database"
+    else
+        log_result 1 "Failed to restore system accounts database"
+    fi
+else
+    echo "System accounts database not found in $BACKUP_DIR/sessions/"
+fi
+[ $SESSION_FOUND -eq 0 ] && [ ! -f "$BACKUP_DIR/sessions/accounts.db" ] && echo "No session data found in $BACKUP_DIR/sessions/"
+
 # Provide summary
 echo "----------------------------------------"
 echo "Restore completed from $BACKUP_DIR"

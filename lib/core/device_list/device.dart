@@ -22,6 +22,7 @@ class Device with _$Device {
     String? commandStatus,
     String? geo,
     DeviceInfo? spoofedDeviceInfo,
+    String? proxy
   }) = _Device;
 
   factory Device.fromJson(Map<String, dynamic> json) => _$DeviceFromJson(json);

@@ -51,6 +51,15 @@ class ShellService {
             serialNumber,
             '--window-title',
             serialNumber,
+            "--max-size",
+            "960",
+            "--video-bit-rate",
+            "2M",
+            "--max-fps",
+            "30",
+            "--no-audio",
+            "--video-codec",
+            "h264",
           ]);
         }).toList();
 
@@ -89,6 +98,15 @@ class ShellService {
       serialNumber,
       '--window-title',
       serialNumber,
+      "--max-size",
+      "960",
+      "--video-bit-rate",
+      "2M",
+      "--max-fps",
+      "30",
+      "--no-audio",
+      "--video-codec",
+      "h264",
     ]);
 
     if (process.exitCode == 0) {

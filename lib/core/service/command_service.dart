@@ -11,6 +11,7 @@ import 'package:android_tools/core/service/shell_service.dart';
 import 'package:android_tools/core/util/device_info_util.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/features/home/domain/entity/device_info.dart';
+import 'package:archive/archive.dart';
 import 'package:collection/collection.dart';
 import 'package:either_dart/either.dart';
 import 'package:flutter/material.dart';
@@ -159,6 +160,19 @@ class CommandService {
     if (command is ReplayTraceScriptCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _replayTraceScript(serialNumber: serialNumber, command: command);
+    }
+
+    if (command is ZipDirectoryCommand) {
+      return _zipDirectory(command: command);
+    }
+
+    if (command is UnzipCommand) {
+      return _unzip(command: command);
+    }
+
+    if (command is GetProxyCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return _getProxy(serialNumber: serialNumber);
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -332,36 +346,6 @@ class CommandService {
     };
   }
 
-  bool _isConnectionError(String output) {
-    return output.contains('cannot resolve host') ||
-        output.contains('no such host is known') ||
-        output.contains('failed to respond') ||
-        output.contains('cannot connect');
-  }
-
-  CommandResult _logError(String? serialNumber, String message, String? error) {
-    logCubit.log(
-      title: "ADB Error for $serialNumber",
-      message: "$message\n$error",
-      type: LogType.ERROR,
-    );
-    return CommandResult(
-      success: false,
-      message: message,
-      error: error,
-      serialNumber: serialNumber,
-    );
-  }
-
-  CommandResult _logSuccess(String? serialNumber, String message) {
-    logCubit.log(title: "ADB Success for $serialNumber", message: message);
-    return CommandResult(
-      success: true,
-      message: message,
-      serialNumber: serialNumber,
-    );
-  }
-
   String _adbCommandWithSerial(String command, String? serialNumber) {
     return serialNumber != null
         ? 'adb -s $serialNumber $command'
@@ -419,35 +403,33 @@ class CommandService {
       var result = await task();
       if (!result.success) {
         return Left(
-        _shellService.logError(serialNumber, result.message, result.error)
-      );
+          _shellService.logError(serialNumber, result.message, result.error),
+        );
       }
     }
-    return Right(
-      _shellService.logSuccess(serialNumber, successMessage)
-    );
+    return Right(_shellService.logSuccess(serialNumber, successMessage));
   }
 
   Future<CommandResult> flashRom({required String serialNumber}) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => _bootTwrp(serialNumber: serialNumber),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
           serialNumber: serialNumber,
         ),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe data"),
           serialNumber: serialNumber,
         ),
-        () => runCommand(
-          command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
-          serialNumber: serialNumber,
-        ),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe system"),
           serialNumber: serialNumber,
         ),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: PushFileCommand(
             sourcePath: romPath,
@@ -523,11 +505,10 @@ class CommandService {
 
         // Check if 'twrp' appears in the output
         if (result.stdout.toString().contains('twrp')) {
-          logCubit.log(title: "TWRP detected...", type: LogType.DEBUG);
-          return CommandResult(success: true, message: "TWRP detected");
+          return _shellService.logSuccess(deviceSerial, "TWRP detected");
         } else {
           // Get device state
-          ProcessResult stateResult = await Process.run('adb', [
+          await Process.run('adb', [
             '-s',
             deviceSerial,
             'get-state',
@@ -535,12 +516,11 @@ class CommandService {
           await Future.delayed(Duration(seconds: 2));
         }
       } catch (e) {
-        logCubit.log(
-          title: "Open TWRP Error...",
-          message: e.toString(),
-          type: LogType.DEBUG,
+        return _shellService.logError(
+          deviceSerial,
+          "TWRP not detected",
+          e.toString(),
         );
-        return CommandResult(success: false, message: "TWRP not detected");
       }
       await Future.delayed(Duration(seconds: 2));
       i++;
@@ -560,8 +540,7 @@ class CommandService {
 
         // Check if the device serial appears in the output
         if (result.stdout.toString().contains(deviceSerial)) {
-          logCubit.log(title: "Fastboot detected...", type: LogType.DEBUG);
-          return CommandResult(success: true, message: "Fastboot detected");
+          return _shellService.logSuccess(deviceSerial, "Fastboot detected");
         }
       } catch (e) {
         logCubit.log(
@@ -569,15 +548,20 @@ class CommandService {
           message: e.toString(),
           type: LogType.DEBUG,
         );
-        return CommandResult(success: false, message: "Fastboot not detected");
+        return _shellService.logError(
+          deviceSerial,
+          "Fastboot not detected",
+          e.toString(),
+        );
       }
 
       await Future.delayed(Duration(seconds: 2));
       i++;
     }
-    return CommandResult(
-      success: false,
-      message: "Fastboot not detected after timeout",
+    return _shellService.logError(
+      deviceSerial,
+      "Fastboot not detected",
+      "Timeout",
     );
   }
 
@@ -604,20 +588,16 @@ class CommandService {
           ], runInShell: true);
 
           if (bootResult.stdout.toString().trim() == '1') {
-            logCubit.log(title: "Phone fully booted...", type: LogType.DEBUG);
-            return CommandResult(
-              success: true,
-              message: "Phone is fully booted",
-            );
+            return _shellService.logSuccess(deviceSerial, "Phone fully booted");
           }
         }
 
         await Future.delayed(Duration(seconds: 2));
       } catch (e) {
-        logCubit.log(
-          title: "Phone Boot Check Error...",
-          message: e.toString(),
-          type: LogType.DEBUG,
+        return _shellService.logError(
+          deviceSerial,
+          "Phone boot check error",
+          e.toString(),
         );
         // Don't return failure yet, let it retry
       }
@@ -646,20 +626,23 @@ class CommandService {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => _bootTwrp(serialNumber: serialNumber),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: PushFileCommand(
             sourcePath:
-                "${Directory.current.path}/file/setup/rom/open_gapp_pico.zip",
+                "${Directory.current.path}/file/setup/rom/open_gapp_nano.zip",
             destinationPath: "/sdcard/gapp.zip",
           ),
           serialNumber: serialNumber,
         ),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell twrp install /sdcard/gapp.zip",
           ),
           serialNumber: serialNumber,
         ),
+        () => runCommand(command: WaitCommand(delayInSecond: 1)),
         () => runCommand(
           command: CustomAdbCommand(command: "shell rm -rf /sdcard/gapp.zip"),
           serialNumber: serialNumber,
@@ -675,13 +658,14 @@ class CommandService {
   }
 
   String _formatBroadcastValue(String value) {
-    // Check if value contains spaces
-    if (value.contains(' ')) {
-      // Escape spaces with backslash and wrap in quotes
-      return '"${value.replaceAll(' ', '\\ ')}"';
-    }
-    // Just wrap in quotes if no spaces
-    return '"$value"';
+    value = value
+        .replaceAll('(', '\\(')
+        .replaceAll(' ', '\\ ')
+        .replaceAll(')', '\\)')
+        .replaceAll('/', '\\/')
+        .replaceAll(';', '\\;')
+    ;
+    return "\'$value\'";
   }
 
   String _buildChangeDeviceBroadcastCommand(DeviceInfo deviceInfo) {
@@ -690,6 +674,7 @@ class CommandService {
       'shell am broadcast -a $changeDeviceBroadcast -p $changeDevicePackage',
     );
 
+    // Original required fields
     buffer.write(' --es model ${_formatBroadcastValue(deviceInfo.model)}');
     buffer.write(' --es brand ${_formatBroadcastValue(deviceInfo.brand)}');
     buffer.write(
@@ -710,28 +695,78 @@ class CommandService {
     buffer.write(
       ' --es android_id ${_formatBroadcastValue(deviceInfo.androidId)}',
     );
-
     buffer.write(' --es imei ${_formatBroadcastValue(deviceInfo.imei)}');
 
-    // Handle optional fields
-    if (deviceInfo.macAddress != null) {
-      buffer.write(
-        ' --es mac_address ${_formatBroadcastValue(deviceInfo.macAddress!)}',
-      );
-    }
-    if (deviceInfo.ssid != null) {
-      buffer.write(' --es ssid ${_formatBroadcastValue(deviceInfo.ssid!)}');
-    }
-    if (deviceInfo.advertisingId != null) {
-      buffer.write(
-        ' --es ad_id ${_formatBroadcastValue(deviceInfo.advertisingId!)}',
-      );
-    }
+    buffer.write(
+      ' --es subscriber_id ${_formatBroadcastValue(deviceInfo.subscriberId)}',
+    );
+    buffer.write(
+      ' --es ad_id ${_formatBroadcastValue(deviceInfo.advertisingId)}',
+    );
 
-    if (deviceInfo.width != null && deviceInfo.height != null) {
-      buffer.write(' --es width ${deviceInfo.width}');
-      buffer.write(' --es height ${deviceInfo.height}');
-    }
+    buffer.write(' --es ssid ${_formatBroadcastValue(deviceInfo.ssid!)}');
+
+    buffer.write(
+      ' --es mac_address ${_formatBroadcastValue(deviceInfo.macAddress!)}',
+    );
+
+    buffer.write(' --es width ${deviceInfo.width}');
+    buffer.write(' --es height ${deviceInfo.height}');
+
+    buffer.write(
+      ' --es android_serial ${_formatBroadcastValue(deviceInfo.androidSerial)}',
+    );
+    buffer.write(
+      ' --es phone_number ${_formatBroadcastValue(deviceInfo.phoneNumber)}',
+    );
+    buffer.write(
+      ' --es gl_vendor ${_formatBroadcastValue(deviceInfo.glVendor)}',
+    );
+    buffer.write(
+      ' --es gl_render ${_formatBroadcastValue(deviceInfo.glRender)}',
+    );
+    buffer.write(
+      ' --es hardware ${_formatBroadcastValue(deviceInfo.hardware)}',
+    );
+    buffer.write(' --es id ${_formatBroadcastValue(deviceInfo.id)}');
+    buffer.write(' --es host ${_formatBroadcastValue(deviceInfo.host)}');
+    buffer.write(' --es radio ${_formatBroadcastValue(deviceInfo.radio)}');
+    buffer.write(
+      ' --es bootloader ${_formatBroadcastValue(deviceInfo.bootloader)}',
+    );
+    buffer.write(' --es display ${_formatBroadcastValue(deviceInfo.display)}');
+    buffer.write(' --es board ${_formatBroadcastValue(deviceInfo.board)}');
+    buffer.write(
+      ' --es codename ${_formatBroadcastValue(deviceInfo.codename)}',
+    );
+    buffer.write(
+      ' --es serial_sim_number ${_formatBroadcastValue(deviceInfo.serialSimNumber)}',
+    );
+    buffer.write(' --es bssid ${_formatBroadcastValue(deviceInfo.bssid)}');
+    buffer.write(
+      ' --es operator ${_formatBroadcastValue(deviceInfo.operator)}',
+    );
+    buffer.write(
+      ' --es operator_name ${_formatBroadcastValue(deviceInfo.operatorName)}',
+    );
+    buffer.write(
+      ' --es country_iso ${_formatBroadcastValue(deviceInfo.countryIso)}',
+    );
+    buffer.write(
+      ' --es user_agent ${_formatBroadcastValue(deviceInfo.userAgent)}',
+    );
+    buffer.write(
+      ' --es os_version ${_formatBroadcastValue(deviceInfo.osVersion)}',
+    );
+    buffer.write(
+      ' --es mac_hardware ${_formatBroadcastValue(deviceInfo.macHardware)}',
+    );
+    buffer.write(' --es wifi_ip ${_formatBroadcastValue(deviceInfo.wifiIp)}');
+    buffer.write(
+      ' --es version_chrome ${_formatBroadcastValue(deviceInfo.versionChrome)}',
+    );
+
+    debugPrint("Change device command: ${buffer.toString()}");
 
     return buffer.toString();
   }
@@ -1220,6 +1255,7 @@ class CommandService {
           ),
           serialNumber: serialNumber,
         ),
+
         () => runCommand(
           command: RemoveFilesCommand(
             filePaths: [
@@ -1229,6 +1265,39 @@ class CommandService {
           ),
           serialNumber: serialNumber,
         ),
+
+        () => runCommand(
+          command: ZipDirectoryCommand(
+            zipFilePath: p.join(deviceLocalBackupDir.path, "$backupName.zip"),
+            folderPath: deviceLocalBackupDir.path,
+          ),
+        ),
+
+        () async {
+          try {
+            Directory dir = Directory(
+              p.join(deviceLocalBackupDir.path, backupName),
+            );
+            if (!await dir.exists()) {
+              return _shellService.logError(
+                serialNumber,
+                "Backup folder not found",
+                "Backup folder not found at ${dir.path}",
+              );
+            }
+            await dir.delete(recursive: true);
+            return _shellService.logSuccess(
+              serialNumber,
+              "Delete folder successfully",
+            );
+          } catch (e) {
+            _shellService.logError(serialNumber, "", e.toString());
+          }
+          return _shellService.logSuccess(
+            serialNumber,
+            "Delete folder successfully",
+          );
+        },
       ],
       successMessage: "Backup successfully",
       serialNumber: serialNumber,
@@ -1246,21 +1315,19 @@ class CommandService {
     required String serialNumber,
   }) async {
     var backupName = command.backupName;
-    var localBackupDir = p.join(
+    var backupFilePath = p.join(
       (await _backUpService.getDeviceLocalBackupDir(
         serialNumber: serialNumber,
       )).path,
-      backupName,
+      "$backupName.zip",
     );
-    var tempPhoneBackUpDir = Directory(
-      localBackupDir,
-    );
+    File backupFile = File(backupFilePath);
 
-    if (!await tempPhoneBackUpDir.exists()) {
-      return CommandResult(
-        success: false,
-        error: "Backup $backupName not exists for $serialNumber",
-        message: "Backup $backupName not exists for $serialNumber",
+    if (!await backupFile.exists()) {
+      return _shellService.logError(
+        serialNumber,
+        "Backup not found",
+        "Backup not found at $backupFilePath",
       );
     }
 
@@ -1268,8 +1335,20 @@ class CommandService {
       backupName: backupName,
     );
 
+    var deviceBackupDir = await _backUpService.getDeviceLocalBackupDir(
+      serialNumber: serialNumber,
+    );
+
+    var localBackupDir = p.join(deviceBackupDir.path, backupName);
+
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
+        () => runCommand(
+          command: UnzipCommand(
+            zipFilePath: backupFilePath,
+            destinationPath: deviceBackupDir.path,
+          ),
+        ),
         () => runCommand(
           command: ResetPhoneStateCommand(),
           serialNumber: serialNumber,
@@ -1327,6 +1406,29 @@ class CommandService {
           ),
           serialNumber: serialNumber,
         ),
+        () async {
+          try {
+            Directory dir = Directory(localBackupDir);
+            if (!await dir.exists()) {
+              return _shellService.logError(
+                serialNumber,
+                "Backup folder not found",
+                "Backup folder not found at ${dir.path}",
+              );
+            }
+            await dir.delete(recursive: true);
+            return _shellService.logSuccess(
+              serialNumber,
+              "Delete folder successfully",
+            );
+          } catch (e) {
+            _shellService.logError(serialNumber, "", e.toString());
+          }
+          return _shellService.logSuccess(
+            serialNumber,
+            "Delete folder successfully",
+          );
+        },
       ],
       successMessage: "Restore successfully",
       serialNumber: serialNumber,
@@ -1359,42 +1461,43 @@ class CommandService {
     required PushAndRunShellScriptCommand command,
     required String serialNumber,
   }) async {
-    var scriptName = command.scriptName;
-    var parameters = command.parameters;
-    Directory scriptDir = Directory(
+    var scriptName = "${command.scriptName}.sh";
+    var parameters = command.parameters?.join(" ");
+    File script = File(
       p.join(Directory.current.path, "dependency", "scripts", scriptName),
     );
-    if (!(await scriptDir.exists())) {
-      return CommandResult(
-        success: false,
-        message: "Script $scriptName not found",
+    if (!(await script.exists())) {
+      return _shellService.logError(
+        serialNumber,
+        "Script not found",
+        "Script not found at ${script.path}",
       );
     }
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
           command: PushFileCommand(
-            sourcePath: scriptDir.path,
-            destinationPath: _backUpService.tempPhoneBackupDirPath,
+            sourcePath: script.path,
+            destinationPath: "${_backUpService.phoneScriptsDir}/$scriptName",
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command:
-                'su "chmod +x ${_backUpService.tempPhoneBackupDirPath}/$scriptName"',
+                "shell chmod +x ${_backUpService.phoneScriptsDir}/$scriptName",
           ),
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command:
-                'su "${_backUpService.tempPhoneBackupDirPath}/$scriptName${parameters ?? ""}"',
+                'shell su -c ${_backUpService.phoneScriptsDir}/$scriptName${parameters != null ? " $parameters" : ""}',
           ),
           serialNumber: serialNumber,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
-            filePaths: ["${_backUpService.tempPhoneBackupDirPath}/$scriptName"],
+            filePaths: ["${_backUpService.phoneScriptsDir}/$scriptName"],
           ),
           serialNumber: serialNumber,
         ),
@@ -1480,9 +1583,9 @@ class CommandService {
       fingerprint: properties['fingerprint'] ?? '',
       androidId: properties['android_id'] ?? '',
       imei: properties['imei'] ?? '',
-      advertisingId: properties['ad_id'],
-      ssid: properties['ssid'],
-      macAddress: properties['mac_address'],
+      advertisingId: properties['ad_id'] ?? '',
+      ssid: properties['ssid'] ?? '',
+      macAddress: properties['mac_address'] ?? '',
       height:
           properties['height'] != null
               ? int.tryParse(properties['height']!)
@@ -1491,6 +1594,29 @@ class CommandService {
           properties['width'] != null
               ? int.tryParse(properties['width']!)
               : null,
+      androidSerial: properties['android_serial'] ?? '',
+      phoneNumber: properties['phone_number'] ?? '',
+      glVendor: properties['gl_vendor'] ?? '',
+      glRender: properties['gl_render'] ?? '',
+      hardware: properties['hardware'] ?? '',
+      id: properties['id'] ?? '',
+      host: properties['host'] ?? '',
+      radio: properties['radio'] ?? '',
+      bootloader: properties['bootloader'] ?? '',
+      display: properties['display'] ?? '',
+      board: properties['board'] ?? '',
+      codename: properties['codename'] ?? '',
+      subscriberId: properties['subscriber_id'] ?? '',
+      serialSimNumber: properties['serial_sim_number'] ?? '',
+      bssid: properties['bssid'] ?? '',
+      operator: properties['operator'] ?? '',
+      operatorName: properties['operator_name'] ?? '',
+      countryIso: properties['country_iso'] ?? '',
+      userAgent: properties['user_agent'] ?? '',
+      osVersion: properties['os_version'] ?? '',
+      macHardware: properties['mac_hardware'] ?? '',
+      wifiIp: properties['wifi_ip'] ?? '',
+      versionChrome: properties['version_chrome'] ?? '',
     );
   }
 
@@ -1526,6 +1652,152 @@ class CommandService {
       shell: Shell(),
       serialNumber: serialNumber,
       replayScriptName: command.traceScriptName,
+    );
+  }
+
+  Future<CommandResult> _zipDirectory({
+    required ZipDirectoryCommand command,
+  }) async {
+    try {
+      final sourceDirPath = command.folderPath;
+      debugPrint("Attempting to zip directory: $sourceDirPath");
+      final sourceDir = Directory(sourceDirPath);
+
+      if (!await sourceDir.exists()) {
+        return _shellService.logError(
+          null,
+          "",
+          "Source directory $sourceDirPath not found",
+        );
+      }
+
+      final zipFilePath = command.zipFilePath;
+      debugPrint("Output ZIP file path: $zipFilePath");
+      final zipFile = File(zipFilePath);
+
+      final encoder = ZipEncoder();
+      final archive = Archive();
+
+      debugPrint("Listing files in $sourceDirPath...");
+      final files = sourceDir.listSync(recursive: true);
+      for (var entity in files) {
+        debugPrint("Processing entity: ${entity.path}");
+        if (entity is File) {
+          try {
+            debugPrint("Reading file: ${entity.path}");
+            final fileBytes = await entity.readAsBytes();
+            final relativePath = entity.path
+                .replaceFirst(sourceDir.path, '')
+                .replaceAll('\\', '/')
+                .substring(1);
+            archive.addFile(
+              ArchiveFile(relativePath, fileBytes.length, fileBytes),
+            );
+          } catch (fileError) {
+            debugPrint("Failed to process file ${entity.path}: $fileError");
+            return _shellService.logError(
+              null,
+              "",
+              "Failed to process file ${entity.path}: $fileError",
+            );
+          }
+        }
+      }
+
+      debugPrint("Encoding ZIP file...");
+      final zipBytes = encoder.encode(archive);
+      debugPrint("Writing ZIP to $zipFilePath...");
+      await zipFile.writeAsBytes(zipBytes);
+      return _shellService.logSuccess(null, "Zipped directory successfully");
+    } catch (e) {
+      debugPrint("Error zipping directory: $e");
+      return _shellService.logError(null, "", "Error zipping directory: $e");
+    }
+  }
+
+  Future<CommandResult> _unzip({required UnzipCommand command}) async {
+    try {
+      final zipFilePath = command.zipFilePath;
+      debugPrint("Attempting to unzip file: $zipFilePath");
+      final zipFile = File(zipFilePath);
+
+      if (!await zipFile.exists()) {
+        return _shellService.logError(
+          null,
+          "",
+          "ZIP file $zipFilePath not found",
+        );
+      }
+
+      final destinationPath = command.destinationPath;
+      debugPrint("Extracting to: $destinationPath");
+      final destinationDir = Directory(destinationPath);
+
+      // Create destination directory if it doesn’t exist
+      if (!await destinationDir.exists()) {
+        await destinationDir.create(recursive: true);
+        debugPrint("Created destination directory: $destinationPath");
+      }
+
+      // Read the ZIP file
+      debugPrint("Reading ZIP file...");
+      final zipBytes = await zipFile.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(zipBytes);
+
+      // Extract each file from the archive
+      debugPrint("Extracting files...");
+      for (final file in archive) {
+        final filePath = '$destinationPath\\${file.name}';
+        debugPrint("Processing: $filePath");
+
+        if (file.isFile) {
+          try {
+            final data = file.content as List<int>;
+            final outputFile = File(filePath);
+            // Ensure the parent directory exists
+            await outputFile.parent.create(recursive: true);
+            await outputFile.writeAsBytes(data);
+            debugPrint("Extracted file: $filePath");
+          } catch (fileError) {
+            debugPrint("Failed to extract file $filePath: $fileError");
+            return _shellService.logError(
+              null,
+              "",
+              "Failed to extract file $filePath: $fileError",
+            );
+          }
+        } else {
+          // Handle directories
+          final dir = Directory(filePath);
+          if (!await dir.exists()) {
+            await dir.create(recursive: true);
+            debugPrint("Created directory: $filePath");
+          }
+        }
+      }
+
+      return _shellService.logSuccess(null, "Unzipped file successfully");
+    } catch (e) {
+      debugPrint("Error unzipping file: $e");
+      return _shellService.logError(null, "", "Error unzipping file: $e");
+    }
+  }
+
+  Future<CommandResult> _getProxy({required String serialNumber}) async {
+    var result = await runCommand(
+      command: CustomAdbCommand(
+        command: "shell settings get global http_proxy",
+      ),
+    );
+    if (!result.success) {
+      return result;
+    }
+
+    return CommandResult(
+      success: true,
+      message: result.message,
+      serialNumber: serialNumber,
+      payload: result.message,
     );
   }
 }

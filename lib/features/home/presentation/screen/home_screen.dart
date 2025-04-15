@@ -1,4 +1,3 @@
-import 'package:android_tools/core/constant/time_zone.dart';
 import 'package:android_tools/core/device_list/adb_device.dart';
 import 'package:android_tools/core/device_list/device_list_cubit.dart';
 import 'package:android_tools/core/router/route_name.dart';
@@ -31,7 +30,6 @@ class HomeScreen extends StatelessWidget {
       body: MultiBlocProvider(
         providers: [
           BlocProvider(create: (context) => sl<HomeCubit>()),
-          BlocProvider(create: (context) => sl<DeviceListCubit>()..init()),
         ],
         child: HomeView(child: child),
       ),
@@ -333,7 +331,7 @@ class _HomeViewState extends State<HomeView>
                               builder: (context, state) {
                                 return DataTable2(
                                   dataRowHeight: 70,
-                                  minWidth: 1000,
+                                  minWidth: 1300,
                                   isHorizontalScrollBarVisible: true,
                                   onSelectAll: (bool? isSelectAll) {
                                     context.read<DeviceListCubit>().onSelectAll(
@@ -355,10 +353,15 @@ class _HomeViewState extends State<HomeView>
                                       size: ColumnSize.M,
                                     ),
                                     DataColumn2(
+                                      label: Text('Proxy'),
+                                      size: ColumnSize.M,
+                                    ),
+                                    DataColumn2(
                                       label: Text('Spoofed Device Info'),
                                       size: ColumnSize.L,
                                       fixedWidth: 300,
                                     ),
+
                                     DataColumn2(
                                       label: Text('Command Status'),
                                       size: ColumnSize.L,
@@ -449,6 +452,16 @@ class _HomeViewState extends State<HomeView>
                                                                 .geo!
                                                                 .isNotEmpty)
                                                         ? device.geo!
+                                                        : "",
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Text(
+                                                    (device.proxy != null &&
+                                                            device
+                                                                .proxy!
+                                                                .isNotEmpty)
+                                                        ? device.proxy!
                                                         : "",
                                                   ),
                                                 ),
@@ -544,7 +557,7 @@ class _HomeViewState extends State<HomeView>
                                             );
                                           }
                                         },
-                                child: Text("Add Device"),
+                                child: Text("Add"),
                               ),
                             ],
                           ),

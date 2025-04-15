@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:android_tools/core/service/shell_service.dart';
-import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:path/path.dart' as p;

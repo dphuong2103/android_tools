@@ -15,6 +15,7 @@ import 'package:get_it/get_it.dart';
 import 'package:process_run/process_run.dart';
 
 import 'core/device_list/device_list_cubit.dart';
+import 'features/backup/presentation/cubit/backup_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -37,5 +38,6 @@ Future<void> init() async {
   sl.registerSingleton<HomeCubit>(HomeCubit());
   sl.registerFactory<PhoneDetailsCubit>(() => PhoneDetailsCubit());
   sl.registerFactory<InstallApkTabCubit>(() => InstallApkTabCubit());
+  sl.registerSingleton<BackupCubit>(BackupCubit());
 
 }
