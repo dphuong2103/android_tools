@@ -187,7 +187,7 @@ String getUserAgent(
   String chromeVersion,
 ) {
   final id = fingerprint.split('/')[2].split(':')[1];
-  return "Mozilla/5.0 (Linux; Android $releaseVersion; $model Build/$id; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/$chromeVersion Mobile Safari/537.36";
+  return "Mozilla/5.0 (Linux; Android $releaseVersion; $model Build/$id) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/$chromeVersion Mobile Safari/537.36";
 }
 
 String generateFingerPrint(BaseDeviceInfo base) {

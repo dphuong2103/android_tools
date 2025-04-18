@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/event_service.dart';
+import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:flutter/material.dart';
 import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/features/phone_details/domain/backup_folder.dart';
@@ -159,5 +160,13 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
 
   Future<CommandResult> installEdXposed({required String serialNumber}) async {
     return await _commandService.installEdXposed(serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> systemizePackages({required String serialNumber}) async{
+    return await _commandService.runCommand(command: SystemizeCommand(["com.midouz.change_phone"]), serialNumber: serialNumber);
+  }
+
+  Future<CommandResult> installSystemize({required String serialNumber}) async {
+    return await _commandService.installSystemize(serialNumber: serialNumber);
   }
 }

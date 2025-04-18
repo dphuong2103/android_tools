@@ -44,9 +44,10 @@ class CommandResult {
 }
 
 const changeDeviceBroadcast = "com.midouz.change_phone.SET_SPOOF";
-const resetPhoneStateBroadcast = "com.midouz.change_phone.RESET_PHONE_STATEF";
+const resetPhoneStateBroadcast = "com.midouz.change_phone.RESET_PHONE_STATE";
 const changeGeoBroadcast = "com.midouz.change_phone.SET_GEO";
 const changeDevicePackage = "com.midouz.change_phone";
+const generalBroadCast = "com.midouz.change_phone.GENERAL_RECEIVER";
 
 class CommandService {
   final Shell _shell = Shell();
@@ -173,6 +174,16 @@ class CommandService {
     if (command is GetProxyCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _getProxy(serialNumber: serialNumber);
+    }
+
+    if (command is BroadCastCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return runCommand(
+        command: CustomAdbCommand(
+          command: _buildBroadcastCommand(command: command),
+        ),
+        serialNumber: serialNumber,
+      );
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -337,6 +348,14 @@ class CommandService {
         "shell media volume --stream 3 --set $volume",
         serialNumber,
       ),
+      SystemizeCommand(packages: var packages) => packages
+          .map(
+            (package) => _adbCommandWithSerial(
+              'shell "su -c systemize -a $package"',
+              serialNumber,
+            ),
+          )
+          .join(Platform.isWindows ? ' ; ' : ' && '),
       ResetPhoneStateCommand(excludeApps: var excludeApps) =>
         _adbCommandWithSerial(
           'shell am broadcast -a $resetPhoneStateBroadcast -p $changeDevicePackage',
@@ -611,7 +630,7 @@ class CommandService {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
-          command: InstallApksCommand(["device_info", "link2sd"]),
+          command: InstallApksCommand(["google_chrome", "device_info"]),
           serialNumber: serialNumber,
         ),
       ],
@@ -663,8 +682,7 @@ class CommandService {
         .replaceAll(' ', '\\ ')
         .replaceAll(')', '\\)')
         .replaceAll('/', '\\/')
-        .replaceAll(';', '\\;')
-    ;
+        .replaceAll(';', '\\;');
     return "\'$value\'";
   }
 
@@ -766,7 +784,16 @@ class CommandService {
       ' --es version_chrome ${_formatBroadcastValue(deviceInfo.versionChrome)}',
     );
 
-    debugPrint("Change device command: ${buffer.toString()}");
+    return buffer.toString();
+  }
+
+  String _buildBroadcastCommand({required BroadCastCommand command}) {
+    final buffer = StringBuffer(
+      'shell am broadcast -a $generalBroadCast -p $changeDevicePackage',
+    );
+    if (command.type == BroadCastCommandType.RemoveAccounts) {
+      buffer.write(' --es type remove_accounts');
+    }
 
     return buffer.toString();
   }
@@ -806,6 +833,11 @@ class CommandService {
             command:
                 "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
           ),
+          serialNumber: serialNumber,
+        ),
+
+        () => runCommand(
+          command: WaitCommand(delayInSecond: 3),
           serialNumber: serialNumber,
         ),
       ],
@@ -889,6 +921,18 @@ class CommandService {
               Directory.current.path,
               "file",
               "setup",
+              "systemize",
+            ),
+            destinationPath: "/sdcard",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: p.join(
+              Directory.current.path,
+              "file",
+              "setup",
               "scripts",
               "install_edxposed.sh",
             ),
@@ -912,6 +956,7 @@ class CommandService {
             filePaths: [
               "/data/local/tmp/install_edxposed.sh",
               "/sdcard/edxposed",
+              "/sdcard/systemize",
             ],
           ),
           serialNumber: serialNumber,
@@ -923,6 +968,62 @@ class CommandService {
         () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
       ],
       successMessage: "Install edxposed successfully",
+      serialNumber: serialNumber,
+    );
+    return result.isLeft ? result.left : result.right;
+  }
+
+  Future<CommandResult> installSystemize({required String serialNumber}) async {
+    var result = await executeMultipleCommandsOn1Device(
+      tasks: [
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: p.join(
+              Directory.current.path,
+              "file",
+              "setup",
+              "systemize",
+            ),
+            destinationPath: "/sdcard",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: PushFileCommand(
+            sourcePath: p.join(
+              Directory.current.path,
+              "file",
+              "setup",
+              "scripts",
+              "install_systemize.sh",
+            ),
+            destinationPath: "/data/local/tmp/",
+          ),
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell chmod +x /data/local/tmp/install_systemize.sh",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell /data/local/tmp/install_systemize.sh",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              "/data/local/tmp/install_systemize.sh",
+              "/sdcard/systemize",
+            ],
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+      ],
+      successMessage: "Install systemize successfully",
       serialNumber: serialNumber,
     );
     return result.isLeft ? result.left : result.right;
@@ -1214,6 +1315,21 @@ class CommandService {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
+          command: RemoveFilesCommand(
+            filePaths: [
+              _backUpService.getPhoneBackupScriptPath(),
+              "/sdcard/backup/",
+            ],
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
+          command: CustomAdbCommand(
+            command: "shell rm -rf ${_backUpService.phoneScriptsDir}",
+          ),
+          serialNumber: serialNumber,
+        ),
+        () => runCommand(
           command: CustomAdbCommand(
             command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
           ),
@@ -1269,7 +1385,7 @@ class CommandService {
         () => runCommand(
           command: ZipDirectoryCommand(
             zipFilePath: p.join(deviceLocalBackupDir.path, "$backupName.zip"),
-            folderPath: deviceLocalBackupDir.path,
+            folderPath: p.join(deviceLocalBackupDir.path, backupName),
           ),
         ),
 
@@ -1346,7 +1462,7 @@ class CommandService {
         () => runCommand(
           command: UnzipCommand(
             zipFilePath: backupFilePath,
-            destinationPath: deviceBackupDir.path,
+            destinationPath: p.join(deviceBackupDir.path, backupName),
           ),
         ),
         () => runCommand(

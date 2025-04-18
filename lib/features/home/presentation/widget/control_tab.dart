@@ -18,6 +18,10 @@ class ControlTab extends StatefulWidget {
   State<ControlTab> createState() => _ControlTabState();
 }
 
+Map<BroadCastCommandType, String> broadCastTypesMap = {
+  BroadCastCommandType.RemoveAccounts: "Remove Accounts",
+};
+
 class _ControlTabState extends State<ControlTab> {
   late final TextEditingController _proxyIpController;
   late final TextEditingController _proxyPortController;
@@ -26,6 +30,9 @@ class _ControlTabState extends State<ControlTab> {
   double _brightness = 50;
   int _volume = 7;
   String? selectedTimeZone;
+  ValueNotifier<BroadCastCommandType> broadCastCommand = ValueNotifier(
+    BroadCastCommandType.RemoveAccounts,
+  );
 
   @override
   void initState() {
@@ -69,18 +76,21 @@ class _ControlTabState extends State<ControlTab> {
   }
 
   Widget _buildStateButtons() {
-    return Row(
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
       children:
           [
                 ButtonState(text: "Reboot", command: RebootCommand()),
                 ButtonState(text: "Twrp/Recovery", command: RecoveryCommand()),
+                ButtonState(text: "Fastboot", command: FastbootCommand()),
                 ButtonState(
-                  text: "Fastboot",
-                  command: FastbootCommand(),
+                  text: "Change info (random)",
+                  command: ChangeRandomDeviceInfoCommand(),
                 ),
               ]
               .map(
-                (buttonState) => TextButton(
+                (buttonState) => OutlinedButton(
                   onPressed: () async {
                     var devices =
                         context.read<DeviceListCubit>().getSelectedDevices();
@@ -107,215 +117,362 @@ class _ControlTabState extends State<ControlTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Gap(10),
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black26),
-            ),
-            padding: const EdgeInsets.only(left: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _proxyIpController,
-                        decoration: InputDecoration(
-                          labelText: 'Proxy IP',
-                          border: InputBorder.none,
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Gap(10),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black26),
+              ),
+              padding: const EdgeInsets.only(left: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _proxyIpController,
+                          decoration: InputDecoration(
+                            labelText: 'Proxy IP',
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
-                    ),
-                    VerticalDivider(color: Colors.black, thickness: 2),
-                    SizedBox(
-                      width: 60,
-                      child: TextField(
-                        controller: _proxyPortController,
-                        decoration: InputDecoration(
-                          labelText: 'Port',
-                          border: InputBorder.none,
+                      VerticalDivider(color: Colors.black, thickness: 2),
+                      SizedBox(
+                        width: 60,
+                        child: TextField(
+                          controller: _proxyPortController,
+                          decoration: InputDecoration(
+                            labelText: 'Port',
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        if (_proxyIpController.text.trim().isEmpty ||
-                            _proxyPortController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please enter proxy info"),
-                            ),
-                          );
-                          return;
-                        }
-                        var devices =
-                        context.read<DeviceListCubit>().getSelectedDevices();
-                        if (devices.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please select at least 1 device"),
-                            ),
-                          );
-                          return;
-                        }
-                        // await context
-                        //     .read<DeviceListCubit>()
-                        //     .executeCommandForSelectedDevices(
-                        //   command: SetWifiProxyCommand(
-                        //     wifi: _wifiController.text.trim(),
-                        //     ip: _proxyIpController.text.trim(),
-                        //     port: _proxyPortController.text.trim(),
-                        //   ),
-                        // );
-                        await context
-                            .read<DeviceListCubit>()
-                            .executeCommandForSelectedDevices(
-                          command: SetProxyCommand(
-                            ip: _proxyIpController.text.trim(),
-                            port: _proxyPortController.text.trim(),
-                          ),
-                        );
-                        SharedPreferences prefs =
-                        await SharedPreferences.getInstance();
-                        prefs.setString('proxyIp', _proxyIpController.text.trim());
-                        prefs.setString(
-                          'proxyPort',
-                          _proxyPortController.text.trim(),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Set proxy success")),
-                        );
-                      },
-                      child: Text("Set"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        var devices =
-                        context.read<DeviceListCubit>().getSelectedDevices();
-                        if (devices.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please select at least 1 device"),
-                            ),
-                          );
-                          return;
-                        }
-                        await context
-                            .read<DeviceListCubit>()
-                            .executeCommandForSelectedDevices(
-                          command: RemoveProxyCommand(),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Remove proxy success")),
-                        );
-                      },
-                      child: Text("Remove"),
-                    ),
-                  ],
-                )
-              ],
-            ),
-          ),
-          Gap(10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black26),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton2<String>(
-                      isExpanded: true,
-                      hint: Text('Geo', style: TextStyle(fontSize: 14)),
-                      items: buildTimezoneList(),
-                      value: selectedTimeZone,
-                      onChanged: (value) {
-                        setState(() {
-                          selectedTimeZone = value;
-                        });
-                        SharedPreferences.getInstance().then((prefs) {
-                          prefs.setString('geo', value!);
-                        });
-                      },
-                      buttonStyleData: const ButtonStyleData(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        height: 40,
-                        width: 100,
-                      ),
-                      dropdownStyleData: const DropdownStyleData(
-                        maxHeight: 200,
-                      ),
-                      menuItemStyleData: const MenuItemStyleData(height: 40),
-                      dropdownSearchData: DropdownSearchData(
-                        searchController: _searchGeoController,
-                        searchInnerWidgetHeight: 50,
-                        searchInnerWidget: Container(
-                          height: 50,
-                          padding: const EdgeInsets.only(
-                            top: 8,
-                            bottom: 4,
-                            right: 8,
-                            left: 8,
-                          ),
-                          child: TextFormField(
-                            expands: true,
-                            maxLines: null,
-                            controller: _searchGeoController,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
+                      TextButton(
+                        onPressed: () async {
+                          if (_proxyIpController.text.trim().isEmpty ||
+                              _proxyPortController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Please enter proxy info"),
                               ),
-                              hintText: 'Search for an item...',
-                              hintStyle: const TextStyle(fontSize: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                            );
+                            return;
+                          }
+                          var devices =
+                              context
+                                  .read<DeviceListCubit>()
+                                  .getSelectedDevices();
+                          if (devices.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Please select at least 1 device"),
+                              ),
+                            );
+                            return;
+                          }
+                          // await context
+                          //     .read<DeviceListCubit>()
+                          //     .executeCommandForSelectedDevices(
+                          //   command: SetWifiProxyCommand(
+                          //     wifi: _wifiController.text.trim(),
+                          //     ip: _proxyIpController.text.trim(),
+                          //     port: _proxyPortController.text.trim(),
+                          //   ),
+                          // );
+                          await context
+                              .read<DeviceListCubit>()
+                              .executeCommandForSelectedDevices(
+                                command: SetProxyCommand(
+                                  ip: _proxyIpController.text.trim(),
+                                  port: _proxyPortController.text.trim(),
+                                ),
+                              );
+                          SharedPreferences prefs =
+                              await SharedPreferences.getInstance();
+                          prefs.setString(
+                            'proxyIp',
+                            _proxyIpController.text.trim(),
+                          );
+                          prefs.setString(
+                            'proxyPort',
+                            _proxyPortController.text.trim(),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Set proxy success")),
+                          );
+                        },
+                        child: Text("Set"),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          var devices =
+                              context
+                                  .read<DeviceListCubit>()
+                                  .getSelectedDevices();
+                          if (devices.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Please select at least 1 device"),
+                              ),
+                            );
+                            return;
+                          }
+                          await context
+                              .read<DeviceListCubit>()
+                              .executeCommandForSelectedDevices(
+                                command: RemoveProxyCommand(),
+                              );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Remove proxy success")),
+                          );
+                        },
+                        child: Text("Remove"),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Gap(10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black26),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton2<String>(
+                        isExpanded: true,
+                        hint: Text('Geo', style: TextStyle(fontSize: 14)),
+                        items: buildTimezoneList(),
+                        value: selectedTimeZone,
+                        onChanged: (value) {
+                          setState(() {
+                            selectedTimeZone = value;
+                          });
+                          SharedPreferences.getInstance().then((prefs) {
+                            prefs.setString('geo', value!);
+                          });
+                        },
+                        buttonStyleData: const ButtonStyleData(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          height: 40,
+                          width: 100,
+                        ),
+                        dropdownStyleData: const DropdownStyleData(
+                          maxHeight: 200,
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(height: 40),
+                        dropdownSearchData: DropdownSearchData(
+                          searchController: _searchGeoController,
+                          searchInnerWidgetHeight: 50,
+                          searchInnerWidget: Container(
+                            height: 50,
+                            padding: const EdgeInsets.only(
+                              top: 8,
+                              bottom: 4,
+                              right: 8,
+                              left: 8,
+                            ),
+                            child: TextFormField(
+                              expands: true,
+                              maxLines: null,
+                              controller: _searchGeoController,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                hintText: 'Search for an item...',
+                                hintStyle: const TextStyle(fontSize: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
                             ),
                           ),
+                          searchMatchFn: (item, searchValue) {
+                            return item.value.toString().contains(searchValue);
+                          },
                         ),
-                        searchMatchFn: (item, searchValue) {
-                          return item.value.toString().contains(searchValue);
+                        //This to clear the search value when you close the menu
+                        onMenuStateChange: (isOpen) {
+                          if (!isOpen) {
+                            _searchGeoController.clear();
+                          }
                         },
                       ),
-                      //This to clear the search value when you close the menu
-                      onMenuStateChange: (isOpen) {
-                        if (!isOpen) {
-                          _searchGeoController.clear();
-                        }
-                      },
                     ),
                   ),
+                  TextButton(
+                    onPressed: () async {
+                      if (selectedTimeZone == null || selectedTimeZone!.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Please select 1 timezone"),
+                          ),
+                        );
+                        return;
+                      }
+                      var location =
+                          timezoneCoordinates[selectedTimeZone]?[Random().nextInt(
+                            2,
+                          )];
+                      if (location == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Cannot find location")),
+                        );
+                        return;
+                      }
+      
+                      var hasSelectDevice = context
+                          .read<DeviceListCubit>()
+                          .state
+                          .devices
+                          .firstWhereOrNull((device) => device.isSelected);
+                      if (hasSelectDevice == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Please select at least 1 device"),
+                          ),
+                        );
+                        return;
+                      }
+      
+                      await context
+                          .read<DeviceListCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: ChangeGeoCommand(
+                              latitude: location['lat']!,
+                              longitude: location['lon']!,
+                              timeZone: timezoneMap[selectedTimeZone]!,
+                            ),
+                          );
+      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Change geo success")),
+                      );
+                    },
+                    child: Text("Change"),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Text("Brightness", style: TextStyle(fontSize: 14)),
+                Expanded(
+                  child: Slider(
+                    min: 0,
+                    value: _brightness,
+                    max: 255,
+                    onChanged: (double value) {
+                      setState(() {
+                        _brightness = value;
+                      });
+                    },
+                    onChangeEnd: (double value) async {
+                      await context
+                          .read<DeviceListCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: SetBrightnessCommand(
+                              brightness: value.toInt(),
+                            ),
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Volume", style: TextStyle(fontSize: 14)),
+                Expanded(
+                  child: Slider(
+                    min: 0,
+                    value: _volume.toDouble(),
+                    max: 25,
+                    onChanged: (double value) {
+                      setState(() {
+                        _volume = value.toInt();
+                      });
+                    },
+                    onChangeEnd: (double value) {
+                      context
+                          .read<DeviceListCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: SetVolumeCommand(volume: value.toInt()),
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text("Always on"),
+                Transform.scale(
+                  scale: 0.7,
+                  child: Switch(
+                    value: _isAlwaysOn,
+                    onChanged: (value) async {
+                      setState(() {
+                        _isAlwaysOn = value;
+                      });
+                      context
+                          .read<DeviceListCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: SetAlwaysOnCommand(value: value ? 1 : 0),
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: broadCastCommand,
+                  builder:
+                      (_, _, _) => DropdownButton<BroadCastCommandType>(
+                        value: broadCastCommand.value,
+                        elevation: 16,
+                        style: const TextStyle(color: Colors.black),
+                        underline: Container(),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 1,
+                          horizontal: 10,
+                        ),
+                        borderRadius: BorderRadius.all(Radius.circular(10)),
+                        onChanged: (BroadCastCommandType? value) {
+                          // This is called when the user selects an item.
+                          if (value != null) {
+                            broadCastCommand.value = value;
+                          }
+                        },
+                        items:
+                            broadCastTypesMap.entries
+                                .map(
+                                  (entries) => DropdownMenuItem(
+                                    value: entries.key,
+                                    child: Text(entries.value),
+                                  ),
+                                )
+                                .toList(),
+                      ),
                 ),
                 TextButton(
+                  child: Text("Run"),
                   onPressed: () async {
-                    if (selectedTimeZone == null || selectedTimeZone!.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please select 1 timezone"),
-                        ),
-                      );
-                      return;
-                    }
-                    var location =
-                        timezoneCoordinates[selectedTimeZone]?[Random().nextInt(
-                          2,
-                        )];
-                    if (location == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Cannot find location")),
-                      );
-                      return;
-                    }
-
                     var hasSelectDevice = context
                         .read<DeviceListCubit>()
                         .state
@@ -329,101 +486,19 @@ class _ControlTabState extends State<ControlTab> {
                       );
                       return;
                     }
-
                     await context
                         .read<DeviceListCubit>()
                         .executeCommandForSelectedDevices(
-                          command: ChangeGeoCommand(
-                            latitude: location['lat']!,
-                            longitude: location['lon']!,
-                            timeZone: timezoneMap[selectedTimeZone]!,
-                          ),
+                          command: BroadCastCommand(type: broadCastCommand.value),
                         );
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Change geo success")),
-                    );
                   },
-                  child: Text("Change"),
                 ),
               ],
             ),
-          ),
-          Row(
-            children: [
-              Text("Brightness", style: TextStyle(fontSize: 14)),
-              Expanded(
-                child: Slider(
-                  min: 0,
-                  value: _brightness,
-                  max: 255,
-                  onChanged: (double value) {
-                    setState(() {
-                      _brightness = value;
-                    });
-                  },
-                  onChangeEnd: (double value) async {
-                    await context
-                        .read<DeviceListCubit>()
-                        .executeCommandForSelectedDevices(
-                          command: SetBrightnessCommand(
-                            brightness: value.toInt(),
-                          ),
-                        );
-                  },
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Text("Volume", style: TextStyle(fontSize: 14)),
-              Expanded(
-                child: Slider(
-                  min: 0,
-                  value: _volume.toDouble(),
-                  max: 25,
-                  onChanged: (double value) {
-                    setState(() {
-                      _volume = value.toInt();
-                    });
-                  },
-                  onChangeEnd: (double value) {
-                    context
-                        .read<DeviceListCubit>()
-                        .executeCommandForSelectedDevices(
-                          command: SetVolumeCommand(volume: value.toInt()),
-                        );
-                  },
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children:[
-              Text("Always on"),
-              Transform.scale(
-                scale: 0.7,
-                child: Switch(
-                  value: _isAlwaysOn,
-                  onChanged: (value) async {
-                    setState(() {
-                      _isAlwaysOn = value;
-                    });
-                    context
-                        .read<DeviceListCubit>()
-                        .executeCommandForSelectedDevices(
-                      command: SetAlwaysOnCommand(value: value ? 1 : 0),
-                    );
-
-                  },
-                ),
-              ),
-            ]
-          ),
-          Gap(50),
-          _buildStateButtons(),
-        ],
+            Gap(50),
+            _buildStateButtons(),
+          ],
+        ),
       ),
     );
   }

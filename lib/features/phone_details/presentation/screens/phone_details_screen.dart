@@ -67,14 +67,16 @@ class PhoneDetailsView extends StatefulWidget {
   State<PhoneDetailsView> createState() => _PhoneDetailsViewState();
 }
 
-enum SetUpPhoneOption { FlashRom, FlaskGApp, InstallMagisk, InstallApp, FlashTwrp, InstallEdXposed }
+enum SetUpPhoneOption { FlashRom, FlaskGApp, InstallMagisk, InstallApp, FlashTwrp, InstallEdXposed,InstallSystemize, SystemizePackages }
 
 Map<SetUpPhoneOption, String> setUpPhoneOptionLabels = {
   SetUpPhoneOption.FlashRom: "1. Flash Rom",
   SetUpPhoneOption.FlaskGApp: "2. Flask GApp",
   SetUpPhoneOption.InstallMagisk: "3. Install Magisk",
   SetUpPhoneOption.InstallEdXposed: "4. Install EdXposed",
-  SetUpPhoneOption.InstallApp: "5. Install Apps",
+  SetUpPhoneOption.InstallSystemize: "5. Install Systemize",
+  SetUpPhoneOption.InstallApp: "6. Install Apps",
+  SetUpPhoneOption.SystemizePackages: "7. Systemize",
   SetUpPhoneOption.FlashTwrp: "Flash TWRP",
 };
 
@@ -421,6 +423,20 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                 result = await context
                                     .read<PhoneDetailsCubit>()
                                     .installEdXposed(
+                                      serialNumber: widget.device.ip,
+                                    );
+                                break;
+                              case SetUpPhoneOption.SystemizePackages:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .systemizePackages(
+                                      serialNumber: widget.device.ip,
+                                    );
+                                break;
+                              case SetUpPhoneOption.InstallSystemize:
+                                result = await context
+                                    .read<PhoneDetailsCubit>()
+                                    .installSystemize(
                                       serialNumber: widget.device.ip,
                                     );
                                 break;

@@ -463,3 +463,19 @@ class GetProxyCommand extends Command{
   const GetProxyCommand()
     : super(description: "Retrieves current proxy settings");
 }
+
+enum BroadCastCommandType{
+  RemoveAccounts
+}
+
+class BroadCastCommand extends Command{
+  final BroadCastCommandType type;
+  const BroadCastCommand({required this.type})
+    : super(description: "Broadcasts a command to the device");
+}
+
+class SystemizeCommand extends Command{
+  final List<String> packages;
+  const SystemizeCommand(this.packages)
+    : super(description: "Systemizes the apps to system");
+}

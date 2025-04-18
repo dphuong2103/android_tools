@@ -70,21 +70,69 @@ log_result() {
     fi
 }
 
-# Backup APKs
 echo "Backing up APKs..."
+TEMP_DIR="$BACKUP_DIR/tmp"
+mkdir -p "$TEMP_DIR" 2>/dev/null
+APK_FOUND=0
 for pkg in $PACKAGES; do
     if is_excluded "$pkg"; then
         echo "Skipping APK: $pkg (excluded)"
         continue
     fi
-    apk_path=$(pm path "$pkg" | cut -d: -f2)
-    if [ -f "$apk_path" ]; then
-        cp "$apk_path" "$BACKUP_DIR/apks/$pkg.apk" 2>/dev/null
-        log_result $? "Backed up APK for $pkg"
-    else
-        log_result 1 "APK not found for $pkg"
+    apk_base=$(pm path "$pkg" | grep base.apk | cut -d: -f2)
+    if [ -z "$apk_base" ]; then
+        log_result 1 "No base APK path found for $pkg"
+        continue
     fi
+    apk_dir=$(dirname "$apk_base")
+    apk_paths=$(find "$apk_dir" -maxdepth 1 -name "*.apk" 2>/dev/null)
+    if [ -z "$apk_paths" ]; then
+        log_result 1 "No APK files found in $apk_dir for $pkg"
+        continue
+    fi
+    if [ $(df -k "$BACKUP_DIR" | tail -1 | awk '{print $4}') -lt 1000000 ]; then
+        log_result 1 "Insufficient storage in $BACKUP_DIR for $pkg"
+        continue
+    fi
+    mkdir -p "$BACKUP_DIR/apks/$pkg" 2>/dev/null
+    success=0
+    for apk_path in $apk_paths; do
+        if [ -f "$apk_path" ]; then
+            apk_name=$(basename "$apk_path")
+            retry_count=0
+            max_retries=3
+            while [ $retry_count -lt $max_retries ]; do
+                cp "$apk_path" "$BACKUP_DIR/apks/$pkg/$apk_name" 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    sha256sum "$apk_path" | cut -d' ' -f1 > "$TEMP_DIR/$apk_name.sha256"
+                    sha256sum "$BACKUP_DIR/apks/$pkg/$apk_name" | cut -d' ' -f1 | cmp -s "$TEMP_DIR/$apk_name.sha256" -
+                    if [ $? -eq 0 ]; then
+                        sha256sum "$BACKUP_DIR/apks/$pkg/$apk_name" > "$BACKUP_DIR/apks/$pkg/$apk_name.sha256"
+                        success=1
+                        break
+                    else
+                        log_result 1 "Integrity check failed for $apk_name (pkg: $pkg)"
+                        rm -f "$BACKUP_DIR/apks/$pkg/$apk_name" 2>/dev/null
+                    fi
+                fi
+                retry_count=$((retry_count + 1))
+                [ $retry_count -lt $max_retries ] && sleep 1
+            done
+            rm -f "$TEMP_DIR/$apk_name.sha256" 2>/dev/null
+            if [ $retry_count -eq $max_retries ]; then
+                log_result 1 "Failed to copy APK $apk_name for $pkg after $max_retries retries"
+            fi
+        else
+            log_result 1 "APK file not found at $apk_path for $pkg"
+        fi
+    done
+    [ $success -eq 1 ] && {
+        APK_FOUND=1
+        log_result 0 "Backed up APK(s) for $pkg"
+    }
 done
+[ $APK_FOUND -eq 0 ] && echo "No APKs backed up"
+rm -rf "$TEMP_DIR" 2>/dev/null
 
 # Backup app data (includes Shared Preferences)
 echo "Backing up app data..."

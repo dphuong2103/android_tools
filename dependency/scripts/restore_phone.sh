@@ -50,27 +50,66 @@ log_result() {
     fi
 }
 
-# Restore APKs
 echo "Restoring APKs..."
 APK_FOUND=0
-for apk in "$BACKUP_DIR/apks/"*.apk; do
-    if [ -f "$apk" ]; then
-        APK_FOUND=1
-        if [ ! -r "$apk" ]; then
-            log_result 1 "Cannot read $apk (check permissions)"
+for pkg_dir in "$BACKUP_DIR/apks/"*/; do
+    if [ -d "$pkg_dir" ] && [ "$(basename "$pkg_dir")" != "*" ]; then
+        pkg=$(basename "$pkg_dir")
+        if pm path "$pkg" | grep -q "/system/"; then
+            echo "Skipping: $pkg (system app)"
+            log_result 0 "Skipped $pkg (already installed as system app)"
             continue
         fi
-        pkg_name=$(basename "$apk" .apk)
-        echo "Installing: $pkg_name"
-        cp "$apk" /data/local/tmp/temp.apk 2>/dev/null
-        if [ $? -eq 0 ]; then
-            chmod 644 /data/local/tmp/temp.apk 2>/dev/null
-            pm install -r /data/local/tmp/temp.apk 2>/dev/null
-            log_result $? "Installed $pkg_name"
-            rm -f /data/local/tmp/temp.apk 2>/dev/null
-        else
-            log_result 1 "Failed to copy $apk to /data/local/tmp"
+        echo "Installing: $pkg"
+        apk_files=$(ls "$pkg_dir"*.apk 2>/dev/null)
+        if [ -z "$apk_files" ]; then
+            log_result 1 "No APK files found for $pkg"
+            continue
         fi
+        if [ $(df -k /data | tail -1 | awk '{print $4}') -lt 1000000 ]; then
+            log_result 1 "Insufficient space in /data for $pkg"
+            continue
+        fi
+        mkdir -p "/data/local/tmp/$pkg" 2>/dev/null
+        cp $apk_files "/data/local/tmp/$pkg/" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            log_result 1 "Failed to copy APKs for $pkg to /data/local/tmp"
+            rm -rf "/data/local/tmp/$pkg" 2>/dev/null
+            continue
+        fi
+        chmod 644 "/data/local/tmp/$pkg/"*.apk 2>/dev/null
+        for apk in "/data/local/tmp/$pkg/"*.apk; do
+            apk_name=$(basename "$apk")
+            if [ -f "$pkg_dir/$apk_name.sha256" ]; then
+                sha256sum -c "$pkg_dir/$apk_name.sha256" || {
+                    log_result 1 "Integrity check failed for $apk"
+                    rm -rf "/data/local/tmp/$pkg" 2>/dev/null
+                    continue 2
+                }
+            fi
+        done
+        # Run pm install-create and capture output
+        pm_create_output=$(pm install-create 2>&1)
+        echo "pm install-create output for $pkg: '$pm_create_output'"
+        # Extract session ID with a more robust regex
+        session_id=$(echo "$pm_create_output" | grep -oE 'session \[[0-9]+\]' | grep -oE '[0-9]+' || true)
+        if [ -z "$session_id" ]; then
+            log_result 1 "Failed to create install session for $pkg (output: $pm_create_output)"
+            rm -rf "/data/local/tmp/$pkg" 2>/dev/null
+            continue
+        fi
+        for apk in "/data/local/tmp/$pkg/"*.apk; do
+            pm install-write "$session_id" "$(basename "$apk")" "$apk" 2>/dev/null
+            if [ $? -ne 0 ]; then
+                log_result 1 "Failed to write APK $(basename "$apk") for $pkg"
+                rm -rf "/data/local/tmp/$pkg" 2>/dev/null
+                continue 2
+            fi
+        done
+        install_output=$(pm install-commit "$session_id" 2>&1)
+        log_result $? "Installed $pkg: $install_output"
+        rm -rf "/data/local/tmp/$pkg" 2>/dev/null
+        APK_FOUND=1
     fi
 done
 [ $APK_FOUND -eq 0 ] && echo "No APKs found in $BACKUP_DIR/apks/"
