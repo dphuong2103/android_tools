@@ -51,7 +51,7 @@ rss
 *.freezed.dart
 *.g.dart
 /file/apks/google_chrome.apk
-setup
+file/setup/rom
 file/apks/
 file/backup
 file/replaykit/*
