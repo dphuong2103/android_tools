@@ -84,7 +84,7 @@ for pkg_dir in "$BACKUP_DIR/apks/"*/; do
                 sha256sum -c "$pkg_dir/$apk_name.sha256" || {
                     log_result 1 "Integrity check failed for $apk"
                     rm -rf "/data/local/tmp/$pkg" 2>/dev/null
-                    continue 2
+                    continue take 2
                 }
             fi
         done
@@ -103,7 +103,7 @@ for pkg_dir in "$BACKUP_DIR/apks/"*/; do
             if [ $? -ne 0 ]; then
                 log_result 1 "Failed to write APK $(basename "$apk") for $pkg"
                 rm -rf "/data/local/tmp/$pkg" 2>/dev/null
-                continue 2
+                continue take 2
             fi
         done
         install_output=$(pm install-commit "$session_id" 2>&1)
@@ -177,7 +177,9 @@ if [ -f "$BACKUP_DIR/spoof/spoof.tar.gz" ]; then
 else
     echo "Spoof backup not found in $BACKUP_DIR/spoof/"
 fi
-
+am force-stop com.google.android.gms
+am force-stop com.android.vending
+pm disable com.google.android.gms
 # Restore account sessions
 echo "Restoring account sessions..."
 SESSION_FOUND=0
@@ -187,6 +189,15 @@ for pkg in $ACCOUNT_PACKAGES; do
     if [ -f "$tarball" ]; then
         SESSION_FOUND=1
         echo "Restoring session data for: $pkg"
+        # Check GSF ID before restoring com.google.android.gsf
+        if [ "$pkg" = "com.google.android.gsf" ] && [ -f "$BACKUP_DIR/sessions/gsf_id.txt" ]; then
+            BACKUP_GSF_ID=$(cat "$BACKUP_DIR/sessions/gsf_id.txt")
+            CURRENT_GSF_ID=$(settings get secure android_id)
+            if [ "$BACKUP_GSF_ID" != "$CURRENT_GSF_ID" ]; then
+                echo "Warning: GSF ID mismatch. Accounts may not restore correctly."
+                log_result 1 "GSF ID mismatch (Backup: $BACKUP_GSF_ID, Current: $CURRENT_GSF_ID)"
+            fi
+        fi
         tar -xzf "$tarball" -C /data/data 2>/dev/null
         if [ $? -eq 0 ]; then
             # Get UID after installation
@@ -206,22 +217,48 @@ for pkg in $ACCOUNT_PACKAGES; do
     fi
 done
 
-# Restore system accounts database
-if [ -f "$BACKUP_DIR/sessions/accounts.db" ]; then
-    mkdir -p /data/system/users/0 2>/dev/null || log_result 1 "Failed to create /data/system/users/0"
-    cp "$BACKUP_DIR/sessions/accounts.db" "/data/system/users/0/accounts.db" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        chown system:system "/data/system/users/0/accounts.db" 2>/dev/null
-        chmod 660 "/data/system/users/0/accounts.db" 2>/dev/null
-        chcon u:object_r:system_data_file:s0 "/data/system/users/0/accounts.db" 2>/dev/null
-        log_result 0 "Restored system accounts database"
+# Restore additional account databases
+for db in accounts.db accounts_ce.db accounts_de.db; do
+    if [ -f "$BACKUP_DIR/sessions/$db" ]; then
+        dest_dir="/data/system/users/0"
+        [ "$db" = "accounts_ce.db" ] && dest_dir="/data/system_ce/0"
+        [ "$db" = "accounts_de.db" ] && dest_dir="/data/system_de/0"
+        mkdir -p "$dest_dir" 2>/dev/null
+        cp "$BACKUP_DIR/sessions/$db" "$dest_dir/$db" 2>/dev/null
+        chown system:system "$dest_dir/$db" 2>/dev/null
+        chmod 660 "$dest_dir/$db" 2>/dev/null
+        chcon u:object_r:system_data_file:s0 "$dest_dir/$db" 2>/dev/null
+        log_result $? "Restored $dest_dir/$db"
     else
-        log_result 1 "Failed to restore system accounts database"
+        echo "$db not found in backup"
     fi
-else
-    echo "System accounts database not found in $BACKUP_DIR/sessions/"
-fi
-[ $SESSION_FOUND -eq 0 ] && [ ! -f "$BACKUP_DIR/sessions/accounts.db" ] && echo "No session data found in $BACKUP_DIR/sessions/"
+done
+
+# Restore sync and credential data
+for dir in sync backup misc/backup misc/credentials misc/keychain; do
+    if [ -f "$BACKUP_DIR/sessions/$dir.tar.gz" ]; then
+        mkdir -p "/data/$dir" 2>/dev/null
+        tar -xzf "$BACKUP_DIR/sessions/$dir.tar.gz" -C "/data/$dir/.." 2>/dev/null
+        log_result $? "Restored /data/$dir"
+    else
+        echo "/data/$dir not found in backup"
+    fi
+done
+
+pm enable com.google.android.gms
+pm enable com.google.android.gsf
+pm enable com.android.vending
+
+# Apply SELinux contexts
+restorecon -R /data/data /data/system /data/system_ce /data/system_de /data/system/sync /data/backup /data/misc 2>/dev/null
+log_result $? "Applied SELinux contexts"
+
+# Initialize Google services
+for pkg in com.google.android.gms com.google.android.gsf com.android.vending; do
+    pm enable "$pkg" 2>/dev/null
+    am start -n "$pkg/.MainActivity" 2>/dev/null
+    log_result $? "Initialized $pkg"
+done
 
 # Provide summary
 echo "----------------------------------------"

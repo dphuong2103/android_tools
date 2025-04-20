@@ -26,10 +26,12 @@ class _ControlTabState extends State<ControlTab> {
   late final TextEditingController _proxyIpController;
   late final TextEditingController _proxyPortController;
   late final TextEditingController _searchGeoController;
+  late final TextEditingController _chPlayUrlController;
   bool _isAlwaysOn = false;
+  bool _isWifiOn = true;
   double _brightness = 50;
   int _volume = 7;
-  String? selectedTimeZone;
+  String? _selectedTimeZone;
   ValueNotifier<BroadCastCommandType> broadCastCommand = ValueNotifier(
     BroadCastCommandType.RemoveAccounts,
   );
@@ -41,8 +43,10 @@ class _ControlTabState extends State<ControlTab> {
     _proxyIpController = TextEditingController();
     _proxyPortController = TextEditingController();
     _searchGeoController = TextEditingController();
+    _chPlayUrlController = TextEditingController();
     _getProxyInfoFromSharedPreferences();
     _getGeoFromSharedPreferences();
+    _getChPlayUrlFromSharePreferences();
   }
 
   @override
@@ -51,6 +55,7 @@ class _ControlTabState extends State<ControlTab> {
     _proxyIpController.dispose();
     _proxyPortController.dispose();
     _searchGeoController.dispose();
+    _chPlayUrlController.dispose();
   }
 
   Future<void> _getProxyInfoFromSharedPreferences() async {
@@ -70,10 +75,21 @@ class _ControlTabState extends State<ControlTab> {
     final geo = prefs.getString('geo');
     if (geo != null && geo.isNotEmpty) {
       setState(() {
-        selectedTimeZone = geo;
+        _selectedTimeZone = geo;
       });
     }
   }
+
+  Future<void> _getChPlayUrlFromSharePreferences() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('chPlayUrl');
+    if (url != null && url.isNotEmpty) {
+      setState(() {
+        _chPlayUrlController.text = url;
+      });
+    }
+  }
+
 
   Widget _buildStateButtons() {
     return Wrap(
@@ -171,7 +187,9 @@ class _ControlTabState extends State<ControlTab> {
                           if (devices.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Please select at least 1 device"),
+                                content: Text(
+                                  "Please select at least 1 device",
+                                ),
                               ),
                             );
                             return;
@@ -218,7 +236,9 @@ class _ControlTabState extends State<ControlTab> {
                           if (devices.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Please select at least 1 device"),
+                                content: Text(
+                                  "Please select at least 1 device",
+                                ),
                               ),
                             );
                             return;
@@ -229,7 +249,9 @@ class _ControlTabState extends State<ControlTab> {
                                 command: RemoveProxyCommand(),
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Remove proxy success")),
+                            const SnackBar(
+                              content: Text("Remove proxy success"),
+                            ),
                           );
                         },
                         child: Text("Remove"),
@@ -253,10 +275,10 @@ class _ControlTabState extends State<ControlTab> {
                         isExpanded: true,
                         hint: Text('Geo', style: TextStyle(fontSize: 14)),
                         items: buildTimezoneList(),
-                        value: selectedTimeZone,
+                        value: _selectedTimeZone,
                         onChanged: (value) {
                           setState(() {
-                            selectedTimeZone = value;
+                            _selectedTimeZone = value;
                           });
                           SharedPreferences.getInstance().then((prefs) {
                             prefs.setString('geo', value!);
@@ -315,7 +337,8 @@ class _ControlTabState extends State<ControlTab> {
                   ),
                   TextButton(
                     onPressed: () async {
-                      if (selectedTimeZone == null || selectedTimeZone!.isEmpty) {
+                      if (_selectedTimeZone == null ||
+                          _selectedTimeZone!.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text("Please select 1 timezone"),
@@ -324,16 +347,15 @@ class _ControlTabState extends State<ControlTab> {
                         return;
                       }
                       var location =
-                          timezoneCoordinates[selectedTimeZone]?[Random().nextInt(
-                            2,
-                          )];
+                          timezoneCoordinates[_selectedTimeZone]?[Random()
+                              .nextInt(2)];
                       if (location == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text("Cannot find location")),
                         );
                         return;
                       }
-      
+
                       var hasSelectDevice = context
                           .read<DeviceListCubit>()
                           .state
@@ -347,17 +369,17 @@ class _ControlTabState extends State<ControlTab> {
                         );
                         return;
                       }
-      
+
                       await context
                           .read<DeviceListCubit>()
                           .executeCommandForSelectedDevices(
                             command: ChangeGeoCommand(
                               latitude: location['lat']!,
                               longitude: location['lon']!,
-                              timeZone: timezoneMap[selectedTimeZone]!,
+                              timeZone: timezoneMap[_selectedTimeZone]!,
                             ),
                           );
-      
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Change geo success")),
                       );
@@ -436,8 +458,69 @@ class _ControlTabState extends State<ControlTab> {
                     },
                   ),
                 ),
+
+                Gap(10),
+                Text("Wifi"),
+                Transform.scale(
+                  scale: 0.7,
+                  child: Switch(
+                    value: _isWifiOn,
+                    onChanged: (value) async {
+                      setState(() {
+                        _isWifiOn = value;
+                      });
+                      context
+                          .read<DeviceListCubit>()
+                          .executeCommandForSelectedDevices(
+                            command: SetWifiCommand(isOn: value),
+                          );
+                    },
+                  ),
+                ),
               ],
             ),
+            Gap(10),
+            Row(
+              children: [
+                Expanded(child: TextField(controller: _chPlayUrlController,
+                  decoration: InputDecoration(
+                    labelText: 'CH Play URL',
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black12, width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black12, width: 1),
+                    ),
+                  ),
+                )),
+                Gap(10),
+                IconButton(
+                  icon: Icon(Icons.play_arrow, color: Colors.green),
+                  onPressed: () async {
+                    if(_chPlayUrlController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Please enter a URL"),
+                        ),
+                      );
+                      return;
+                    }
+                    context
+                        .read<DeviceListCubit>()
+                        .executeCommandForSelectedDevices(
+                          command: OpenChPlayWithUrlCommand(url: _chPlayUrlController.text.trim()),
+                        );
+                    SharedPreferences prefs =
+                        await SharedPreferences.getInstance();
+                    prefs.setString(
+                      'chPlayUrl',
+                      _chPlayUrlController.text.trim(),
+                    );
+                  },
+                ),
+              ],
+            ),
+            Gap(50),
             Row(
               children: [
                 ValueListenableBuilder(
@@ -489,13 +572,15 @@ class _ControlTabState extends State<ControlTab> {
                     await context
                         .read<DeviceListCubit>()
                         .executeCommandForSelectedDevices(
-                          command: BroadCastCommand(type: broadCastCommand.value),
+                          command: BroadCastCommand(
+                            type: broadCastCommand.value,
+                          ),
                         );
                   },
                 ),
               ],
             ),
-            Gap(50),
+            Gap(10),
             _buildStateButtons(),
           ],
         ),

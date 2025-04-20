@@ -361,6 +361,10 @@ class CommandService {
           'shell am broadcast -a $resetPhoneStateBroadcast -p $changeDevicePackage',
           serialNumber,
         ),
+      SetWifiCommand(isOn: var isOn) => _adbCommandWithSerial(
+        'shell svc wifi ${isOn ? 'enable' : 'disable'}',
+        serialNumber,
+      ),
       _ => throw UnsupportedError('Unknown command'),
     };
   }
@@ -683,7 +687,7 @@ class CommandService {
         .replaceAll(')', '\\)')
         .replaceAll('/', '\\/')
         .replaceAll(';', '\\;');
-    return "\'$value\'";
+    return """\'$value\'""";
   }
 
   String _buildChangeDeviceBroadcastCommand(DeviceInfo deviceInfo) {
@@ -816,6 +820,8 @@ class CommandService {
     required String serialNumber,
     required DeviceInfo deviceInfo,
   }) async {
+    debugPrint("command: "+ _buildChangeDeviceBroadcastCommand(deviceInfo));
+
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(

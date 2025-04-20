@@ -479,3 +479,9 @@ class SystemizeCommand extends Command{
   const SystemizeCommand(this.packages)
     : super(description: "Systemizes the apps to system");
 }
+
+class SetWifiCommand extends Command{
+  final bool isOn;
+  const SetWifiCommand({required this.isOn})
+    : super(description: "Toggles WiFi on or off");
+}

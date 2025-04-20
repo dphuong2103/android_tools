@@ -196,12 +196,33 @@ for pkg in $ACCOUNT_PACKAGES; do
     fi
 done
 
-# Backup system account database
-if [ -f "/data/system/users/0/accounts.db" ]; then
-    cp "/data/system/users/0/accounts.db" "$BACKUP_DIR/sessions/accounts.db" 2>/dev/null
-    log_result $? "Backed up system accounts database"
+# Backup additional account databases
+for db in /data/system/users/0/accounts.db /data/system_ce/0/accounts_ce.db /data/system_de/0/accounts_de.db; do
+    if [ -f "$db" ]; then
+        cp "$db" "$BACKUP_DIR/sessions/$(basename "$db")" 2>/dev/null
+        log_result $? "Backed up $db"
+    else
+        echo "$db not found"
+    fi
+done
+
+# Backup sync and credential data
+for dir in /data/system/sync /data/backup /data/misc/backup /data/misc/credentials /data/misc/keychain; do
+    if [ -d "$dir" ]; then
+        tar -czf "$BACKUP_DIR/sessions/$(basename "$dir").tar.gz" -C "$(dirname "$dir")" "$(basename "$dir")" 2>/dev/null
+        log_result $? "Backed up $dir"
+    else
+        echo "$dir not found"
+    fi
+done
+
+# Backup GSF ID
+GSF_ID=$(settings get secure android_id) # Approximate GSF ID
+if [ -n "$GSF_ID" ]; then
+    echo "$GSF_ID" > "$BACKUP_DIR/sessions/gsf_id.txt" 2>/dev/null
+    log_result $? "Backed up GSF ID"
 else
-    echo "System accounts database not found"
+    echo "GSF ID not found"
 fi
 
 # Provide summary
