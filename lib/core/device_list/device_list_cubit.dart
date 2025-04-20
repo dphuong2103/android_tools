@@ -844,7 +844,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       whereArgs: deviceSerials,
     );
 
-    await _commandService.runCommandOnMultipleDevices(
+    _commandService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
       command: DisconnectCommand(),
     );
