@@ -15,6 +15,7 @@ import 'package:collection/collection.dart';
 import 'package:either_dart/either.dart';
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:process_run/process_run.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'adb_device.dart';
@@ -126,6 +127,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   }
 
   Future<CommandResult> addDevice(String ip) async {
+    Shell shell = sl();
     emit(state.copyWith(isAddingDevice: true));
     var deviceList = await _commandService.deviceList();
     if (deviceList.firstWhereOrNull((d) => d.serialNumber == ip) != null) {
@@ -137,7 +139,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       return CommandResult(success: true, message: "Success");
     }
 
-    var connectResult = await _commandService.connectOverTcpIp(ip);
+    var connectResult = await _commandService.connectOverTcpIp(ip, shell);
 
     if (connectResult.success) {
       final Database db = await _dbService.database;
@@ -150,6 +152,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   }
 
   Future<void> loadDevices() async {
+    Shell shell = sl();
     final isLogged = false;
     final Database db = await _dbService.database;
     final result = await db.query(TableName.devices);
@@ -158,59 +161,78 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     final currentStateDevices = state.devices;
 
     var adbDeviceList = await _commandService.deviceList(isLogged: isLogged);
-    Map<String, DeviceConnectionStatus> deviceStatusMap = deviceListStatusMap(adbDeviceList);
+    Map<String, DeviceConnectionStatus> deviceStatusMap = deviceListStatusMap(
+      adbDeviceList,
+    );
 
     final currentDeviceMap = {for (var d in currentStateDevices) d.ip: d};
 
-    List<Device> mergedDevices = dbDevices.map((dbDevice) {
-      final existing = currentDeviceMap[dbDevice.ip];
+    List<Device> mergedDevices =
+        dbDevices.map((dbDevice) {
+          final existing = currentDeviceMap[dbDevice.ip];
 
-      return dbDevice.copyWith(
-        status: deviceStatusMap[dbDevice.ip] ?? DeviceConnectionStatus.notDetected,
-        isSelected: existing?.isSelected ?? false,
-        commandStatus: existing?.commandStatus,
-        geo: existing?.geo,
-        spoofedDeviceInfo: existing?.spoofedDeviceInfo,
-        proxy: existing?.proxy,
-      );
-    }).toList();
+          return dbDevice.copyWith(
+            status:
+                deviceStatusMap[dbDevice.ip] ??
+                DeviceConnectionStatus.notDetected,
+            isSelected: existing?.isSelected ?? false,
+            commandStatus: existing?.commandStatus,
+            geo: existing?.geo,
+            spoofedDeviceInfo: existing?.spoofedDeviceInfo,
+            proxy: existing?.proxy,
+          );
+        }).toList();
 
-    final connectedDevices = mergedDevices.where((device) =>
-    device.status == DeviceConnectionStatus.booted ||
-        device.status == DeviceConnectionStatus.twrp ||
-        device.status == DeviceConnectionStatus.recovery
-    ).toList();
+    final connectedDevices =
+        mergedDevices
+            .where(
+              (device) =>
+                  device.status == DeviceConnectionStatus.booted ||
+                  device.status == DeviceConnectionStatus.twrp ||
+                  device.status == DeviceConnectionStatus.recovery,
+            )
+            .toList();
 
     final deviceIps = connectedDevices.map((d) => d.ip).toList();
 
-    var spoofedDeviceInfoResult = await _commandService.runCommandOnMultipleDevices(
-      command: GetSpoofedDeviceInfoCommand(),
-      deviceSerials: deviceIps,
-      isLogged: isLogged,
-    );
-    var spoofedDeviceInfoMap = {for (var e in spoofedDeviceInfoResult) e.serialNumber: e.payload};
+    var spoofedDeviceInfoResult = await _commandService
+        .runCommandOnMultipleDevices(
+          command: GetSpoofedDeviceInfoCommand(),
+          deviceSerials: deviceIps,
+          isLogged: isLogged,
+          shell: shell,
+        );
+    var spoofedDeviceInfoMap = {
+      for (var e in spoofedDeviceInfoResult) e.serialNumber: e.payload,
+    };
 
     var spoofedGeoResult = await _commandService.runCommandOnMultipleDevices(
       command: GetSpoofedGeoCommand(),
       deviceSerials: deviceIps,
       isLogged: isLogged,
+      shell: shell,
     );
-    var spoofedGeoMap = {for (var e in spoofedGeoResult) e.serialNumber: e.payload};
+    var spoofedGeoMap = {
+      for (var e in spoofedGeoResult) e.serialNumber: e.payload,
+    };
 
     var proxyResult = await _commandService.runCommandOnMultipleDevices(
       command: GetProxyCommand(),
       deviceSerials: deviceIps,
       isLogged: isLogged,
+      shell: shell,
     );
     var proxyMap = {for (var e in proxyResult) e.serialNumber: e.payload};
 
-    mergedDevices = mergedDevices.map((device) {
-      return device.copyWith(
-        spoofedDeviceInfo: spoofedDeviceInfoMap[device.ip] ?? device.spoofedDeviceInfo,
-        geo: spoofedGeoMap[device.ip] ?? device.geo,
-        proxy: proxyMap[device.ip] ?? device.proxy,
-      );
-    }).toList();
+    mergedDevices =
+        mergedDevices.map((device) {
+          return device.copyWith(
+            spoofedDeviceInfo:
+                spoofedDeviceInfoMap[device.ip] ?? device.spoofedDeviceInfo,
+            geo: spoofedGeoMap[device.ip] ?? device.geo,
+            proxy: proxyMap[device.ip] ?? device.proxy,
+          );
+        }).toList();
 
     emit(state.copyWith(devices: mergedDevices));
   }
@@ -680,9 +702,11 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       }
     } else {
       try {
+        Shell shell = sl();
         results = await _commandService.runCommandOnMultipleDevices(
           deviceSerials: deviceIps,
           command: command,
+          shell: shell
         );
       } catch (error) {
         _logCubit.log(
@@ -735,6 +759,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
             }).toList(),
       ),
     );
+
   }
 
   String? getValueInsideParentheses(String input) {
@@ -750,6 +775,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
   }
 
   Future<void> deleteDevices() async {
+    Shell shell = sl();
     var deviceSerials =
         state.devices.where((d) => d.isSelected).map((d) => d.ip).toList();
 
@@ -772,10 +798,12 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     _commandService.runCommandOnMultipleDevices(
       deviceSerials: deviceSerials,
       command: DisconnectCommand(),
+      shell: shell
     );
   }
 
   Future<void> connectAll() async {
+    Shell shell = sl();
     emit(state.copyWith(isConnectingAll: true));
     try {
       var devices =
@@ -783,7 +811,7 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       var deviceSerials = devices.map((device) => device.ip).toList();
       List<Future<CommandResult>> tasks =
           deviceSerials.map((deviceIp) async {
-            return await _commandService.connectOverTcpIp(deviceIp);
+            return await _commandService.connectOverTcpIp(deviceIp, shell);
           }).toList();
       await Future.wait(tasks);
     } finally {
@@ -887,9 +915,11 @@ class DeviceListCubit extends Cubit<DeviceListState> {
     required String serialNumber,
     required RestoreBackupCommand command,
   }) async {
+    Shell shell = sl();
     return await _commandService.runCommand(
       command: command,
       serialNumber: serialNumber,
+      shell: shell
     );
   }
 
@@ -921,4 +951,5 @@ class DeviceListCubit extends Cubit<DeviceListState> {
       loadDevices();
     });
   }
+
 }

@@ -50,7 +50,6 @@ const changeDevicePackage = "com.midouz.change_phone";
 const generalBroadCast = "com.midouz.change_phone.GENERAL_RECEIVER";
 
 class CommandService {
-  final Shell shell = Shell();
   final LogCubit logCubit = sl();
   final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
@@ -82,6 +81,7 @@ class CommandService {
   );
 
   Future<CommandResult> runCommand({
+    required Shell shell,
     required Command command,
     String? serialNumber,
     int port = 5555,
@@ -94,6 +94,7 @@ class CommandService {
         result: await _changeDeviceInfo(
           deviceInfo: deviceInfo,
           serialNumber: serialNumber,
+          shell: shell,
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
@@ -107,6 +108,7 @@ class CommandService {
         result: await _changeDeviceInfo(
           deviceInfo: command.deviceInfo,
           serialNumber: serialNumber,
+          shell: shell,
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
@@ -116,7 +118,11 @@ class CommandService {
     if (command is ChangeGeoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _shellService.returnCommandResult(
-        result: await _changeGeo(command: command, serialNumber: serialNumber),
+        result: await _changeGeo(
+          command: command,
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
         serialNumber: serialNumber,
         isLogged: isLogged,
       );
@@ -128,6 +134,7 @@ class CommandService {
         result: await _backupPhone(
           command: command,
           serialNumber: serialNumber,
+          shell: shell,
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
@@ -140,6 +147,7 @@ class CommandService {
         result: await _restorePhone(
           command: command,
           serialNumber: serialNumber,
+          shell: shell,
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
@@ -152,6 +160,7 @@ class CommandService {
         result: await _pushAndRunShellScript(
           command: command,
           serialNumber: serialNumber,
+          shell: shell,
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
@@ -187,7 +196,11 @@ class CommandService {
     if (command is GetSpoofedDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _shellService.returnCommandResult(
-        result: await _getSpoofedDeviceInfo(serialNumber: serialNumber, isLogged: isLogged),
+        result: await _getSpoofedDeviceInfo(
+          serialNumber: serialNumber,
+          isLogged: isLogged,
+          shell: shell,
+        ),
         serialNumber: serialNumber,
         isLogged: isLogged,
       );
@@ -196,7 +209,11 @@ class CommandService {
     if (command is GetSpoofedGeoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _shellService.returnCommandResult(
-        result: await _getSpoofedGeo(serialNumber: serialNumber, isLogged: isLogged),
+        result: await _getSpoofedGeo(
+          serialNumber: serialNumber,
+          isLogged: isLogged,
+          shell: shell,
+        ),
         serialNumber: serialNumber,
         isLogged: isLogged,
       );
@@ -233,7 +250,11 @@ class CommandService {
     if (command is GetProxyCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       return _shellService.returnCommandResult(
-        result: await _getProxy(serialNumber: serialNumber, isLogged: isLogged),
+        result: await _getProxy(
+          serialNumber: serialNumber,
+          isLogged: isLogged,
+          shell: shell,
+        ),
         serialNumber: serialNumber,
         isLogged: isLogged,
       );
@@ -247,7 +268,13 @@ class CommandService {
         ),
         serialNumber: serialNumber,
         isLogged: isLogged,
+        shell: shell,
       );
+    }
+
+    if (command is ShowScreenCommand) {
+      if (serialNumber == null) throw Exception("Serial Number is null");
+      return _shellService.runScrcpy(serialNumber);
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
@@ -445,17 +472,22 @@ class CommandService {
 
   Future<CommandResult> runShellCommand(
     String command, {
+    required Shell shell,
     String? serialNumber,
+    bool isLogged = true,
   }) async {
     return await runCommand(
       command: ShellCommand(command),
       serialNumber: serialNumber,
+      shell: shell,
+      isLogged: isLogged,
     );
   }
 
   Future<List<CommandResult>> runCommandOnMultipleDevices({
     required List<String> deviceSerials,
     required Command command,
+    required Shell shell,
     isLogged = true,
   }) async {
     if (isLogged) {
@@ -471,23 +503,32 @@ class CommandService {
             command: command,
             serialNumber: serial,
             isLogged: isLogged,
+            shell: shell,
           );
         }).toList();
 
     return await Future.wait(tasks);
   }
 
-  Future<CommandResult> connectOverTcpIp(String serialNumber) async {
+  Future<CommandResult> connectOverTcpIp(
+    String serialNumber,
+    Shell shell,
+  ) async {
     return await runCommand(
       command: ConnectCommand(serialNumber),
       serialNumber: serialNumber,
+      shell: shell,
     );
   }
 
-  Future<CommandResult> disconnectOverTcpIp(String serialNumber) async {
+  Future<CommandResult> disconnectOverTcpIp(
+    String serialNumber,
+    Shell shell,
+  ) async {
     return await runCommand(
       command: DisconnectCommand(),
       serialNumber: serialNumber,
+      shell: shell,
     );
   }
 
@@ -519,44 +560,57 @@ class CommandService {
     );
   }
 
-  Future<CommandResult> flashRom({required String serialNumber}) async {
+  Future<CommandResult> flashRom({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () => _bootTwrp(serialNumber: serialNumber),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => _bootTwrp(serialNumber: serialNumber, shell: shell),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe dalvik"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe data"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: CustomAdbCommand(command: "shell twrp wipe system"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: PushFileCommand(
             sourcePath: romPath,
             destinationPath: "/sdcard/rom.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell twrp install /sdcard/rom.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(command: "shell rm -rf /sdcard/rom.zip"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
       ],
       successMessage: "Rom flash successfully",
       serialNumber: serialNumber,
@@ -568,28 +622,38 @@ class CommandService {
     }
   }
 
-  Future<CommandResult> flashMagisk({required String serialNumber}) async {
+  Future<CommandResult> flashMagisk({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () => _bootTwrp(serialNumber: serialNumber),
+        () => _bootTwrp(serialNumber: serialNumber, shell: shell),
         () => runCommand(
           command: PushFileCommand(
             sourcePath: magiskPath,
             destinationPath: "/sdcard/magisk.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell twrp install /sdcard/magisk.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(command: "shell rm -rf /sdcard/magisk.zip"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
         () => waitForPhoneBoot(serialNumber),
       ],
       successMessage: "Flask magisk successfully",
@@ -730,12 +794,16 @@ class CommandService {
     return CommandResult(success: false, message: "Phone boot timeout");
   }
 
-  Future<CommandResult> installInitApks({required String serialNumber}) async {
+  Future<CommandResult> installInitApks({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
           command: InstallApksCommand(["google_chrome", "device_info"]),
           serialNumber: serialNumber,
+          shell: shell,
         ),
       ],
       serialNumber: serialNumber,
@@ -745,11 +813,14 @@ class CommandService {
     return results.isLeft ? results.left : results.right;
   }
 
-  Future<CommandResult> flashGApp({required String serialNumber}) async {
+  Future<CommandResult> flashGApp({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var results = await executeMultipleCommandsOn1Device(
       tasks: [
-        () => _bootTwrp(serialNumber: serialNumber),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => _bootTwrp(serialNumber: serialNumber, shell: shell),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: PushFileCommand(
             sourcePath:
@@ -757,20 +828,27 @@ class CommandService {
             destinationPath: "/sdcard/gapp.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell twrp install /sdcard/gapp.zip",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: WaitCommand(delayInSecond: 1)),
+        () => runCommand(command: WaitCommand(delayInSecond: 1), shell: shell),
         () => runCommand(
           command: CustomAdbCommand(command: "shell rm -rf /sdcard/gapp.zip"),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
         () => waitForPhoneBoot(serialNumber),
       ],
       serialNumber: serialNumber,
@@ -919,6 +997,7 @@ class CommandService {
   Future<CommandResult> _changeDeviceInfo({
     required String serialNumber,
     required DeviceInfo deviceInfo,
+    required Shell shell,
   }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
@@ -927,10 +1006,12 @@ class CommandService {
             command: _buildChangeDeviceBroadcastCommand(deviceInfo),
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: ClosePackageCommand(changeDevicePackage),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomCommand(
@@ -938,11 +1019,13 @@ class CommandService {
                 "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
 
         () => runCommand(
           command: WaitCommand(delayInSecond: 3),
           serialNumber: serialNumber,
+          shell: shell,
         ),
       ],
       successMessage: "Change device info successfully",
@@ -955,6 +1038,7 @@ class CommandService {
   Future<CommandResult> _changeGeo({
     required String serialNumber,
     required ChangeGeoCommand command,
+    required Shell shell,
   }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
@@ -967,10 +1051,12 @@ class CommandService {
             ),
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: ClosePackageCommand(changeDevicePackage),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomCommand(
@@ -978,6 +1064,7 @@ class CommandService {
                 "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
       ],
       successMessage: "Change geo info successfully",
@@ -987,7 +1074,10 @@ class CommandService {
     return result.isLeft ? result.left : result.right;
   }
 
-  Future<CommandResult> flashTwrp({required String serialNumber}) async {
+  Future<CommandResult> flashTwrp({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => waitForFastboot(serialNumber),
@@ -996,6 +1086,7 @@ class CommandService {
             command:
                 "fastboot -s $serialNumber boot ${Directory.current.path}/file/setup/twrp/twrp.img",
           ),
+          shell: shell,
         ),
       ],
       successMessage: "Flash twrp successfully",
@@ -1004,7 +1095,10 @@ class CommandService {
     return result.isLeft ? result.left : result.right;
   }
 
-  Future<CommandResult> installEdXposed({required String serialNumber}) async {
+  Future<CommandResult> installEdXposed({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
@@ -1018,6 +1112,7 @@ class CommandService {
             destinationPath: "/sdcard",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1030,6 +1125,7 @@ class CommandService {
             destinationPath: "/sdcard",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1042,18 +1138,21 @@ class CommandService {
             ),
             destinationPath: "/data/local/tmp/",
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell chmod +x /data/local/tmp/install_edxposed.sh",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell /data/local/tmp/install_edxposed.sh",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
@@ -1064,12 +1163,18 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: InstallApksCommand(["edxposed-manager"]),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
       ],
       successMessage: "Install edxposed successfully",
       serialNumber: serialNumber,
@@ -1077,7 +1182,10 @@ class CommandService {
     return result.isLeft ? result.left : result.right;
   }
 
-  Future<CommandResult> installSystemize({required String serialNumber}) async {
+  Future<CommandResult> installSystemize({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
@@ -1091,6 +1199,7 @@ class CommandService {
             destinationPath: "/sdcard",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1103,18 +1212,21 @@ class CommandService {
             ),
             destinationPath: "/data/local/tmp/",
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell chmod +x /data/local/tmp/install_systemize.sh",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell /data/local/tmp/install_systemize.sh",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
@@ -1124,8 +1236,13 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
-        () => runCommand(command: RebootCommand(), serialNumber: serialNumber),
+        () => runCommand(
+          command: RebootCommand(),
+          serialNumber: serialNumber,
+          shell: shell,
+        ),
       ],
       successMessage: "Install systemize successfully",
       serialNumber: serialNumber,
@@ -1233,15 +1350,15 @@ class CommandService {
     return DeviceConnectionStatus.notDetected;
   }
 
-  Future<List<AdbDevice>> deviceList({
-    bool isLogged = true
-}) async {
+  Future<List<AdbDevice>> deviceList({bool isLogged = true}) async {
+    Shell shell = sl();
     List<AdbDevice> devices = [];
 
     // Check ADB devices (includes booted, recovery, side load states)
     final adbOutput = await runCommand(
       command: ListDevicesCommand(),
       isLogged: isLogged,
+      shell: shell,
     );
     devices.addAll(await _parseAdbDevices(adbOutput.message));
 
@@ -1249,6 +1366,7 @@ class CommandService {
     final fastbootOutput = await runCommand(
       command: CustomCommand(command: "fastboot devices"),
       isLogged: isLogged,
+      shell: shell,
     );
     devices.addAll(_parseFastbootDevices(fastbootOutput.message));
 
@@ -1341,7 +1459,10 @@ class CommandService {
     return devices;
   }
 
-  Future<CommandResult> _bootTwrp({required String serialNumber}) async {
+  Future<CommandResult> _bootTwrp({
+    required String serialNumber,
+    required Shell shell,
+  }) async {
     var phoneStatus = await checkPhoneStatus(serialNumber);
     switch (phoneStatus) {
       case DeviceConnectionStatus.booted:
@@ -1351,12 +1472,14 @@ class CommandService {
             () => runCommand(
               command: FastbootCommand(),
               serialNumber: serialNumber,
+              shell: shell,
             ),
             () => waitForFastboot(serialNumber),
             () => runCommand(
               command: CustomCommand(
                 command: 'fastboot -s $serialNumber boot "$twrpPath"',
               ),
+              shell: shell,
             ),
             () => waitForTWRP(serialNumber),
           ],
@@ -1371,6 +1494,7 @@ class CommandService {
               command: CustomCommand(
                 command: 'fastboot -s $serialNumber boot "$twrpPath"',
               ),
+              shell: shell,
             ),
             () => waitForTWRP(serialNumber),
           ],
@@ -1399,6 +1523,7 @@ class CommandService {
   Future<CommandResult> _backupPhone({
     required String serialNumber,
     required BackupCommand command,
+    required Shell shell,
   }) async {
     var excludePackages = command.excludePackages ?? [];
     var backupName = command.backupName;
@@ -1428,17 +1553,20 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell rm -rf ${_backUpService.phoneScriptsDir}",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
@@ -1448,6 +1576,7 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1455,6 +1584,7 @@ class CommandService {
             destinationPath: _backUpService.getPhoneBackupScriptPath(),
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
@@ -1462,6 +1592,7 @@ class CommandService {
                 "shell chmod +x ${_backUpService.getPhoneBackupScriptPath()}",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
@@ -1469,6 +1600,7 @@ class CommandService {
                 'shell "su -c\ ${_backUpService.getPhoneBackupScriptPath()} $tempPhoneBackupDir $joinedExcludePackages"',
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PullFileCommand(
@@ -1476,6 +1608,7 @@ class CommandService {
             destinationPath: deviceLocalBackupDir.path,
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
 
         () => runCommand(
@@ -1486,6 +1619,7 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
 
         () => runCommand(
@@ -1493,6 +1627,7 @@ class CommandService {
             zipFilePath: p.join(deviceLocalBackupDir.path, "$backupName.zip"),
             folderPath: p.join(deviceLocalBackupDir.path, backupName),
           ),
+          shell: shell,
         ),
 
         () async {
@@ -1535,6 +1670,7 @@ class CommandService {
   Future<CommandResult> _restorePhone({
     required RestoreBackupCommand command,
     required String serialNumber,
+    required Shell shell,
   }) async {
     var backupName = command.backupName;
     var backupFilePath = p.join(
@@ -1566,15 +1702,18 @@ class CommandService {
             zipFilePath: backupFilePath,
             destinationPath: p.join(deviceBackupDir.path, backupName),
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: ResetPhoneStateCommand(),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command: "shell mkdir -p ${_backUpService.phoneScriptsDir}",
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1582,6 +1721,7 @@ class CommandService {
             destinationPath: _backUpService.tempPhoneBackupDirPath,
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: PushFileCommand(
@@ -1589,6 +1729,7 @@ class CommandService {
             destinationPath: _backUpService.getPhoneRestoreScriptPath(),
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
@@ -1596,6 +1737,7 @@ class CommandService {
                 "shell chmod +x ${_backUpService.getPhoneRestoreScriptPath()}",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
@@ -1603,6 +1745,7 @@ class CommandService {
                 'shell su -c ${_backUpService.getPhoneRestoreScriptPath()} $tempPhoneBackupPath',
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
@@ -1612,10 +1755,12 @@ class CommandService {
             ],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: ClosePackageCommand(changeDevicePackage),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomCommand(
@@ -1623,6 +1768,7 @@ class CommandService {
                 "adb shell am start -n $changeDevicePackage/$changeDevicePackage.MainActivity",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () async {
           try {
@@ -1653,6 +1799,7 @@ class CommandService {
   Future<List<String>> _getDevicePackages({
     required String serialNumber,
     required GetPackagesCommand command,
+    required Shell shell,
   }) async {
     bool isUserPackagesOnly = command.isUserPackagesOnly;
     final output = await runCommand(
@@ -1660,6 +1807,7 @@ class CommandService {
         command: "shell pm list packages${isUserPackagesOnly ? " -3" : ""}",
       ),
       serialNumber: serialNumber,
+      shell: shell,
     );
     return output.message
         .split('\n') // Split by newline
@@ -1674,6 +1822,7 @@ class CommandService {
   Future<CommandResult> _pushAndRunShellScript({
     required PushAndRunShellScriptCommand command,
     required String serialNumber,
+    required Shell shell,
   }) async {
     var scriptName = "${command.scriptName}.sh";
     var parameters = command.parameters?.join(" ");
@@ -1694,12 +1843,14 @@ class CommandService {
             destinationPath: "${_backUpService.phoneScriptsDir}/$scriptName",
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
             command:
                 "shell chmod +x ${_backUpService.phoneScriptsDir}/$scriptName",
           ),
+          shell: shell,
         ),
         () => runCommand(
           command: CustomAdbCommand(
@@ -1707,12 +1858,14 @@ class CommandService {
                 'shell su -c ${_backUpService.phoneScriptsDir}/$scriptName${parameters != null ? " $parameters" : ""}',
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
         () => runCommand(
           command: RemoveFilesCommand(
             filePaths: ["${_backUpService.phoneScriptsDir}/$scriptName"],
           ),
           serialNumber: serialNumber,
+          shell: shell,
         ),
       ],
       successMessage: "Run script successfully",
@@ -1724,7 +1877,8 @@ class CommandService {
 
   Future<CommandResult> _getSpoofedDeviceInfo({
     required String serialNumber,
-    bool isLogged = true
+    required Shell shell,
+    bool isLogged = true,
   }) async {
     var phoneSpoofedDeviceInfoPath =
         "/data/local/tmp/spoof/spoofed_device_info.properties";
@@ -1733,6 +1887,7 @@ class CommandService {
         command: "shell cat $phoneSpoofedDeviceInfoPath",
       ),
       isLogged: isLogged,
+      shell: shell,
     );
 
     if (!result.success) {
@@ -1749,6 +1904,7 @@ class CommandService {
 
   Future<CommandResult> _getSpoofedGeo({
     required String serialNumber,
+    required Shell shell,
     isLogged = true,
   }) async {
     var phoneSpoofedDeviceInfoPath =
@@ -1758,6 +1914,7 @@ class CommandService {
         command: "shell cat $phoneSpoofedDeviceInfoPath",
       ),
       isLogged: isLogged,
+      shell: shell,
     );
     if (!result.success) {
       return result;
@@ -1995,12 +2152,17 @@ class CommandService {
     }
   }
 
-  Future<CommandResult> _getProxy({required String serialNumber, bool isLogged = true}) async {
+  Future<CommandResult> _getProxy({
+    required String serialNumber,
+    required Shell shell,
+    bool isLogged = true,
+  }) async {
     var result = await runCommand(
       command: CustomAdbCommand(
         command: "shell settings get global http_proxy",
       ),
       isLogged: isLogged,
+      shell: shell,
     );
     if (!result.success) {
       return result;

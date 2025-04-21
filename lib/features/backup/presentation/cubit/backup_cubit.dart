@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:android_tools/core/service/backup_service.dart';
 import 'package:android_tools/core/service/command_service.dart';
-import 'package:android_tools/core/service/event_service.dart';
-import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
@@ -21,11 +19,8 @@ part 'backup_state.dart';
 class BackupCubit extends Cubit<BackupState> {
   BackupCubit() : super(const BackupStateList());
 
-  final DirectoryService _directoryService = sl();
   final BackUpService _backupService = sl();
   final CommandService _commandService = sl();
-  final EventService _eventService = sl();
-  final Shell _shell = sl();
   List<BackUpFile> backupFiles = List.empty(growable: true);
 
   void init() {
@@ -183,6 +178,7 @@ class BackupCubit extends Cubit<BackupState> {
   }
 
   Future<void> onRestoreSelect() async {
+    Shell shell = sl();
     var currentState = state;
     if (currentState is BackupStateList) {
       List<Future<CommandResult>> tasks = [];
@@ -198,6 +194,7 @@ class BackupCubit extends Cubit<BackupState> {
               return _commandService.runCommand(
                 command: RestoreBackupCommand(backupName: selectedFile.name),
                 serialNumber: selectedFile.serialNumber,
+                shell: shell,
               );
             }).toList();
       }

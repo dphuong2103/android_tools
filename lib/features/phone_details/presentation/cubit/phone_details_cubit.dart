@@ -5,7 +5,6 @@ import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/event_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:flutter/material.dart';
-import 'package:android_tools/core/service/directory_service.dart';
 import 'package:android_tools/features/phone_details/domain/backup_file.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
@@ -150,39 +149,49 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   }
 
   Future<CommandResult> flashRom({required String serialNumber}) async {
-    return await _commandService.flashRom(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.flashRom(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> flashMagisk({required String serialNumber}) async {
-    return await _commandService.flashMagisk(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.flashMagisk(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> installApks({required String serialNumber}) async {
-    return await _commandService.installInitApks(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.installInitApks(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> flashGApp({required String serialNumber}) async {
-    return await _commandService.flashGApp(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.flashGApp(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> flashTwrp({required String serialNumber}) async {
-    return await _commandService.flashTwrp(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.flashTwrp(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> installEdXposed({required String serialNumber}) async {
-    return await _commandService.installEdXposed(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.installEdXposed(serialNumber: serialNumber, shell: shell);
   }
 
   Future<CommandResult> systemizePackages({
     required String serialNumber,
   }) async {
+    Shell shell = sl();
     return await _commandService.runCommand(
       command: SystemizeCommand(["com.midouz.change_phone"]),
       serialNumber: serialNumber,
+      shell: shell,
     );
   }
 
   Future<CommandResult> installSystemize({required String serialNumber}) async {
-    return await _commandService.installSystemize(serialNumber: serialNumber);
+    Shell shell = sl();
+    return await _commandService.installSystemize(serialNumber: serialNumber, shell: shell);
   }
+
 }

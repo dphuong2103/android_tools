@@ -114,7 +114,6 @@ class ShellService {
     } else {
       return logError(
         serialNumber,
-        process.stdout.toString(),
         process.stderr.toString(),
       );
     }
@@ -138,7 +137,6 @@ class ShellService {
       if (_isConnectionError(output)) {
         return logError(
           serialNumber,
-          "Connection error detected.",
           result.errText,
         );
       }
@@ -160,10 +158,16 @@ class ShellService {
             serialNumber: serialNumber,
           );
         }
-        return logError(serialNumber, result.outText, result.errText);
+        return logError(serialNumber, result.errText);
       }
     } catch (e) {
-      return logError(serialNumber, "Exception occurred", e.toString());
+      if(e is ShellException){
+        return logError(
+          serialNumber,
+          e.result?.stderr?.toString() ?? e.result?.stdout?.toString() ?? e.toString(),
+        );
+      }
+      return logError(serialNumber, e.toString());
     }
   }
 
@@ -189,15 +193,15 @@ class ShellService {
     return result;
   }
 
-  CommandResult logError(String? serialNumber, String message, String? error) {
+  CommandResult logError(String? serialNumber, String? error) {
     logCubit.log(
       title: "Error ${serialNumber != null ? "for $serialNumber" : ""}",
-      message: "$message\n$error",
+      message: error,
       type: LogType.ERROR,
     );
     return CommandResult(
       success: false,
-      message: message,
+      message: "",
       error: error,
       serialNumber: serialNumber,
     );

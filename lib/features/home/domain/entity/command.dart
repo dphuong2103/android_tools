@@ -485,3 +485,8 @@ class SetWifiCommand extends Command{
   const SetWifiCommand({required this.isOn})
     : super(description: "Toggles WiFi on or off");
 }
+
+class ShowScreenCommand extends Command{
+  const ShowScreenCommand()
+    : super(description: "Displays the device screen");
+}

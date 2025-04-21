@@ -224,7 +224,7 @@ class _HomeViewState extends State<HomeView>
                         );
                         return;
                       }
-                      context.read<DeviceListCubit>().showScreen();
+                      context.read<DeviceListCubit>().executeCommandForSelectedDevices(command: ShowScreenCommand());
                     },
                     onLongPress: null,
                   ),

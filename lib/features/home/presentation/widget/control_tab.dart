@@ -203,7 +203,7 @@ class _ControlTabState extends State<ControlTab> {
                           //     port: _proxyPortController.text.trim(),
                           //   ),
                           // );
-                          await context
+                          var result = await context
                               .read<DeviceListCubit>()
                               .executeCommandForSelectedDevices(
                                 command: SetProxyCommand(
@@ -211,6 +211,7 @@ class _ControlTabState extends State<ControlTab> {
                                   port: _proxyPortController.text.trim(),
                                 ),
                               );
+
                           SharedPreferences prefs =
                               await SharedPreferences.getInstance();
                           prefs.setString(
@@ -222,7 +223,7 @@ class _ControlTabState extends State<ControlTab> {
                             _proxyPortController.text.trim(),
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Set proxy success")),
+                            const SnackBar(content: Text("Command finished!")),
                           );
                         },
                         child: Text("Set"),
@@ -250,7 +251,7 @@ class _ControlTabState extends State<ControlTab> {
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text("Remove proxy success"),
+                              content: Text("Command finished!"),
                             ),
                           );
                         },
@@ -283,6 +284,7 @@ class _ControlTabState extends State<ControlTab> {
                           SharedPreferences.getInstance().then((prefs) {
                             prefs.setString('geo', value!);
                           });
+
                         },
                         buttonStyleData: const ButtonStyleData(
                           padding: EdgeInsets.symmetric(horizontal: 16),
@@ -381,7 +383,7 @@ class _ControlTabState extends State<ControlTab> {
                           );
 
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Change geo success")),
+                        const SnackBar(content: Text("Command finished!")),
                       );
                     },
                     child: Text("Change"),
