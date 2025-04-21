@@ -130,6 +130,7 @@ class ShellService {
   Future<CommandResult> runShell({
     required Future<List<ProcessResult>> Function() run,
     String? serialNumber,
+    bool isLogged = true,
   }) async {
     try {
       var result = await run();
@@ -142,8 +143,23 @@ class ShellService {
         );
       }
       if (result.first.exitCode == 0) {
+        if (!isLogged) {
+          return CommandResult(
+            success: true,
+            message: output,
+            serialNumber: serialNumber,
+          );
+        }
         return logSuccess(serialNumber, output);
       } else {
+        if (!isLogged) {
+          return CommandResult(
+            success: false,
+            message: output,
+            error: result.errText,
+            serialNumber: serialNumber,
+          );
+        }
         return logError(serialNumber, result.outText, result.errText);
       }
     } catch (e) {
@@ -151,9 +167,31 @@ class ShellService {
     }
   }
 
+  CommandResult returnCommandResult({
+    required CommandResult result,
+    String? serialNumber,
+    isLogged = true,
+  }) {
+    if (isLogged) {
+      if (result.success) {
+        logCubit.log(
+          title: "Success ${serialNumber != null ? "for $serialNumber" : ""}",
+          message: result.message,
+        );
+      } else {
+        logCubit.log(
+          title: "Error ${serialNumber != null ? "for $serialNumber" : ""}",
+          message: result.message + (result.error ?? ""),
+          type: LogType.ERROR,
+        );
+      }
+    }
+    return result;
+  }
+
   CommandResult logError(String? serialNumber, String message, String? error) {
     logCubit.log(
-      title: "ADB Error for $serialNumber",
+      title: "Error ${serialNumber != null ? "for $serialNumber" : ""}",
       message: "$message\n$error",
       type: LogType.ERROR,
     );
@@ -166,12 +204,11 @@ class ShellService {
   }
 
   CommandResult logSuccess(String? serialNumber, String message) {
-    logCubit.log(title: "ADB Success for $serialNumber", message: message);
+    logCubit.log(title: "Success ${serialNumber != null ? "for $serialNumber" : ""}", message: message);
     return CommandResult(
       success: true,
       message: message,
       serialNumber: serialNumber,
     );
   }
-
 }

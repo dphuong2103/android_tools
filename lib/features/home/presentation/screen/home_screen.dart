@@ -207,17 +207,6 @@ class _HomeViewState extends State<HomeView>
                             },
                     child: Text("Connect All"),
                   ),
-                  Gap(5),
-                  IconButton(
-                    icon: Icon(Icons.refresh, color: Colors.green),
-                    onPressed:
-                        context.read<DeviceListCubit>().state.isRefreshing
-                            ? null
-                            : () async {
-                              context.read<DeviceListCubit>().refresh();
-                            },
-                    onLongPress: null,
-                  ),
                   Gap(2),
                   IconButton(
                     icon: Icon(Icons.phone_android, color: Colors.green),

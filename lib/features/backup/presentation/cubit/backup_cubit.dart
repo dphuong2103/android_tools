@@ -155,15 +155,7 @@ class BackupCubit extends Cubit<BackupState> {
         }
         getBackupFiles();
       }
-      //update the state
-      emit(
-        currentState.copyWith(
-          filteredBackUpFiles:
-              currentState.filteredBackUpFiles
-                  .where((file) => !file.isSelected)
-                  .toList(),
-        ),
-      );
+
     }
   }
 
@@ -209,6 +201,15 @@ class BackupCubit extends Cubit<BackupState> {
               );
             }).toList();
       }
+      emit(
+        currentState.copyWith(
+          filteredBackUpFiles: selectedFiles.map((file) {
+            return file.copyWith(
+              restoreStatus: "Restoring...",
+            );
+          }).toList(),
+        ),
+      );
       await Future.wait(tasks).then((value) {
         results = value;
       });

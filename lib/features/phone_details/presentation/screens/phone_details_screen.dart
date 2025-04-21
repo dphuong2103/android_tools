@@ -83,6 +83,7 @@ Map<SetUpPhoneOption, String> setUpPhoneOptionLabels = {
 class _PhoneDetailsViewState extends State<PhoneDetailsView>
     with SingleTickerProviderStateMixin {
   final tabs = <Widget>[
+    Tab(text: "Spoofing info"),
     Tab(text: "RSS"),
     Tab(text: "Script"),
     Tab(text: "Setup"),
@@ -124,13 +125,85 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8.0),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          //Show spoof device info from device.spoofedDeviceInfo
+                          if (widget.device.spoofedDeviceInfo != null)
+                            Column(
+                              children: [
+                                Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children:[
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("Model: ${widget.device.spoofedDeviceInfo!.model}"),
+                                        Text("Brand: ${widget.device.spoofedDeviceInfo!.brand}"),
+                                        Text("Manufacturer: ${widget.device.spoofedDeviceInfo!.manufacturer}"),
+                                        Text("SerialNo: ${widget.device.spoofedDeviceInfo!.serialNo}"),
+                                        Text("Device: ${widget.device.spoofedDeviceInfo!.device}"),
+                                        Text("ProductName: ${widget.device.spoofedDeviceInfo!.productName}"),
+                                        Text("ReleaseVersion: ${widget.device.spoofedDeviceInfo!.releaseVersion}"),
+                                        Text("SdkVersion: ${widget.device.spoofedDeviceInfo!.sdkVersion}"),
+                                        Text("Fingerprint: ${widget.device.spoofedDeviceInfo!.fingerprint}"),
+                                        Text("AndroidId: ${widget.device.spoofedDeviceInfo!.androidId}"),
+                                        Text("IMEI: ${widget.device.spoofedDeviceInfo!.imei}"),
+                                        Text("SubscriberId: ${widget.device.spoofedDeviceInfo!.subscriberId}"),
+                                        Text("AdvertisingId: ${widget.device.spoofedDeviceInfo!.advertisingId}"),
+                                        Text("SSID: ${widget.device.spoofedDeviceInfo!.ssid}"),
+                                        Text("MacAddress: ${widget.device.spoofedDeviceInfo!.macAddress}"),
+                                        Text("Height: ${widget.device.spoofedDeviceInfo!.height}"),
+                                        Text("Width: ${widget.device.spoofedDeviceInfo!.width}"),
+                                        Text("AndroidSerial: ${widget.device.spoofedDeviceInfo!.androidSerial}"),
+                                        Text("PhoneNumber: ${widget.device.spoofedDeviceInfo!.phoneNumber}"),
+                                        Text("GlVendor: ${widget.device.spoofedDeviceInfo!.glVendor}"),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children:[
+                                      Text("GlRender: ${widget.device.spoofedDeviceInfo!.glRender}"),
+                                      Text("Hardware: ${widget.device.spoofedDeviceInfo!.hardware}"),
+                                      Text("Id: ${widget.device.spoofedDeviceInfo!.id}"),
+                                      Text("Host: ${widget.device.spoofedDeviceInfo!.host}"),
+                                      Text("Radio: ${widget.device.spoofedDeviceInfo!.radio}"),
+                                      Text("Bootloader: ${widget.device.spoofedDeviceInfo!.bootloader}"),
+                                      Text("Display: ${widget.device.spoofedDeviceInfo!.display}"),
+                                      Text("Board: ${widget.device.spoofedDeviceInfo!.board}"),
+                                      Text("Codename: ${widget.device.spoofedDeviceInfo!.codename}"),
+                                      Text("SerialSimNumber: ${widget.device.spoofedDeviceInfo!.serialSimNumber}"),
+                                      Text("Bssid: ${widget.device.spoofedDeviceInfo!.bssid}"),
+                                      Text("Operator: ${widget.device.spoofedDeviceInfo!.operator}"),
+                                      Text("OperatorName: ${widget.device.spoofedDeviceInfo!.operatorName}"),
+                                      Text("CountryIso: ${widget.device.spoofedDeviceInfo!.countryIso}"),
+                                      Text("UserAgent: ${widget.device.spoofedDeviceInfo!.userAgent}"),
+                                      Text("OsVersion: ${widget.device.spoofedDeviceInfo!.osVersion}"),
+                                      Text("MacHardware: ${widget.device.spoofedDeviceInfo!.macHardware}"),
+                                      Text("WifiIp: ${widget.device.spoofedDeviceInfo!.wifiIp}"),
+                                      Text("VersionChrome: ${widget.device.spoofedDeviceInfo!.versionChrome}"),
+                                    ]),
+                                  )
+                                ]),
+                              ],
+                            ),
+
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
                     child: Column(
                       children: [
                         Row(
                           children: [
                             IconButton(
                               onPressed: () async {
-                                var hasSelectDevice = state.backUpFolders
+                                var hasSelectDevice = state.backupFiles
                                     ?.firstWhereOrNull(
                                       (folder) => folder.isSelected,
                                     );
@@ -167,7 +240,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                               onPressed: () async {
 
                                 var selectedFolders =
-                                    state.backUpFolders
+                                    state.backupFiles
                                         ?.where((folder) => folder.isSelected)
                                         .toList();
                                 if (selectedFolders == null) {
@@ -198,7 +271,7 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                                     'Would you like to start backing up?',
                                   ),
                                   textOK: const Text('Yes'),
-                                  textCancel: const Text('No'),
+                                  textCancel: const Text('No'   ),
                                 )) {
                                   if (context.mounted) {
                                     context.read<DeviceListCubit>().executeCommandForMultipleDevices(
@@ -225,53 +298,47 @@ class _PhoneDetailsViewState extends State<PhoneDetailsView>
                             },
                             columns: [
                               DataColumn2(label: Text("Name")),
-                              DataColumn2(label: Text("Path")),
+                              DataColumn2(label: Text("Size")),
                               DataColumn2(
                                 label: Text("Created At"),
-                                onSort: (i, b) {
-                                  context
-                                      .read<PhoneDetailsCubit>()
-                                      .sortFolderByCreatedAt();
-                                },
+
                               ),
-                              DataColumn2(label: Text("Modified At")),
+                              DataColumn2(
+                                label: Text("Restore Status"),
+                              ),
                               // DataColumn2(label: Text("Type")),
                             ],
                             rows:
-                                state.backUpFolders
-                                    ?.map(
-                                      (folder) => DataRow2(
-                                        onSelectChanged: (bool? selected) {
-                                          context
-                                              .read<PhoneDetailsCubit>()
-                                              .onToggleSelectFolder(
-                                                folderName: folder.name,
-                                                selected: selected ?? false,
-                                              );
-                                        },
-                                        selected: folder.isSelected,
-                                        cells: [
-                                          DataCell(Text(folder.name)),
-                                          DataCell(Text(folder.path)),
-                                          DataCell(
-                                            Text(
-                                              formatDateTime(
-                                                dateTime: folder.createdAt,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text(
-                                              formatDateTime(
-                                                dateTime: folder.createdAt,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                            state.backupFiles?.map(
+                                  (file) => DataRow2(
+                                onSelectChanged: (bool? selected) {
+                                  context
+                                      .read<PhoneDetailsCubit>()
+                                      .onToggleSelect(
+                                    path: file.path,
+                                    selected: selected ?? false,
+                                  );
+                                },
+                                selected: file.isSelected,
+                                cells: [
+                                  DataCell(Text(file.name)),
+                                  DataCell(
+                                    SelectableText(
+                                      "${file.size.toStringAsFixed(2)} MB",
+                                    ),
+                                  ),
+                                  DataCell(
+                                    SelectableText(
+                                      formatDateTime(
+                                        dateTime: file.createdAt,
                                       ),
-                                    )
-                                    .toList() ??
-                                [],
+                                    ),
+                                  ),
+                                  DataCell(SelectableText(file.restoreStatus ?? "")),
+                                ],
+                              ),
+                            )
+                                .toList() ?? [],
                           ),
                         ),
                         ElevatedButton(

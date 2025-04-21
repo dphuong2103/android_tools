@@ -1,15 +1,15 @@
 import 'dart:io';
 
+import 'package:android_tools/core/service/backup_service.dart';
 import 'package:android_tools/core/service/command_service.dart';
 import 'package:android_tools/core/service/event_service.dart';
 import 'package:android_tools/features/home/domain/entity/command.dart';
 import 'package:flutter/material.dart';
 import 'package:android_tools/core/service/directory_service.dart';
-import 'package:android_tools/features/phone_details/domain/backup_folder.dart';
+import 'package:android_tools/features/phone_details/domain/backup_file.dart';
 import 'package:android_tools/injection_container.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:path/path.dart' as path;
 import 'package:process_run/process_run.dart';
 
 part 'phone_details_cubit.freezed.dart';
@@ -19,71 +19,82 @@ part 'phone_details_state.dart';
 class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   PhoneDetailsCubit() : super(const PhoneDetailsState());
 
-
-  final DirectoryService _directoryService = sl();
   final CommandService _commandService = sl();
   final EventService _eventService = sl();
+  final BackUpService _backupService = sl();
   final Shell _shell = sl();
 
   Future<void> init({required String serialNumber}) async {
-    List<BackUpFolder> backUpFolders = [];
-    final directory = _directoryService.getDeviceBackUpDirectory(
+    getBackupFiles(serialNumber);
+  }
+
+  Future<void> getBackupFiles(String serialNumber) async {
+    List<BackUpFile> backupFiles = [];
+    final dir = await _backupService.getDeviceLocalBackupDir(
       serialNumber: serialNumber,
     );
-    if (await directory.exists()) {
-      final entities = directory.list();
 
-      await for (var entity in entities) {
-        if (entity is Directory) {
-          FileStat stats = await directory.stat();
-          backUpFolders.add(
-            BackUpFolder(
-              name: path.basename(entity.path),
-              path: entity.path,
+    try {
+      await for (final backupEntity in dir.list()){
+        if (backupEntity is File && backupEntity.path.endsWith('.zip')) {
+          final stat = await backupEntity.stat();
+          final backupName = backupEntity.uri.pathSegments.last.replaceAll(
+            '.zip',
+            '',
+          );
+
+          backupFiles.add(
+            BackUpFile(
+              path: backupEntity.path,
+              name: backupName,
+              // e.g., "backup.zip" or "test2.zip"
               isSelected: false,
-              createdAt: stats.changed,
-              modifiedAt: stats.modified,
-              // type: stats.type,
+              createdAt: stat.changed,
+              modifiedAt: stat.modified,
+              size: stat.size / (1024 * 1024), // Size in MB
             ),
           );
         }
       }
+
+      emit(state.copyWith(backupFiles: backupFiles));
+    } catch (e) {
+      emit(state.copyWith(error: e.toString()));
     }
-    emit(state.copyWith(backUpFolders: backUpFolders));
+
+    return;
   }
 
-  void onToggleSelectFolder({required String folderName, bool? selected}) {
-    final newBackUpFolders =
-        state.backUpFolders?.map((folder) {
-          if (folder.name == folderName) {
-            return folder.copyWith(isSelected: selected ?? !folder.isSelected);
+  void onToggleSelect({required String path, bool? selected}) {
+    final backupFiles =
+        state.backupFiles?.map((x) {
+          if (x.path == path) {
+            return x.copyWith(isSelected: selected ?? !x.isSelected);
           }
-          return folder;
+          return x;
         }).toList();
-    emit(state.copyWith(backUpFolders: newBackUpFolders));
+    emit(state.copyWith(backupFiles: backupFiles));
   }
 
   void onSelectAll(bool? isSelectAll) {
     final newBackUpFolders =
-        state.backUpFolders?.map((folder) {
+        state.backupFiles?.map((folder) {
           return folder.copyWith(isSelected: isSelectAll ?? false);
         }).toList();
-    emit(state.copyWith(backUpFolders: newBackUpFolders));
+    emit(state.copyWith(backupFiles: newBackUpFolders));
   }
 
   void deleteSelectedFolder() {
     final selectedFolders =
-        state.backUpFolders?.where((folder) => folder.isSelected).toList();
+        state.backupFiles?.where((folder) => folder.isSelected).toList();
     if (selectedFolders != null) {
       for (var folder in selectedFolders) {
         Directory(folder.path).deleteSync(recursive: true);
       }
       emit(
         state.copyWith(
-          backUpFolders:
-              state.backUpFolders
-                  ?.where((folder) => !folder.isSelected)
-                  .toList(),
+          backupFiles:
+              state.backupFiles?.where((folder) => !folder.isSelected).toList(),
         ),
       );
     }
@@ -92,9 +103,9 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
   //TODO: Implement sortFolderByCreatedAt
   void sortFolderByCreatedAt() {
     final newBackUpFolders =
-        state.backUpFolders?.toList()
+        state.backupFiles?.toList()
           ?..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    emit(state.copyWith(backUpFolders: newBackUpFolders));
+    emit(state.copyWith(backupFiles: newBackUpFolders));
   }
 
   Future<void> startRecordingEvents({
@@ -162,8 +173,13 @@ class PhoneDetailsCubit extends Cubit<PhoneDetailsState> {
     return await _commandService.installEdXposed(serialNumber: serialNumber);
   }
 
-  Future<CommandResult> systemizePackages({required String serialNumber}) async{
-    return await _commandService.runCommand(command: SystemizeCommand(["com.midouz.change_phone"]), serialNumber: serialNumber);
+  Future<CommandResult> systemizePackages({
+    required String serialNumber,
+  }) async {
+    return await _commandService.runCommand(
+      command: SystemizeCommand(["com.midouz.change_phone"]),
+      serialNumber: serialNumber,
+    );
   }
 
   Future<CommandResult> installSystemize({required String serialNumber}) async {

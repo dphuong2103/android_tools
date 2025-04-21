@@ -316,8 +316,7 @@ class _BackupViewState extends State<BackupView> {
                                   ],
                                 ),
                               )
-                              .toList() ??
-                          [],
+                              .toList(),
                     ),
                   ),
                 ],

@@ -50,7 +50,7 @@ const changeDevicePackage = "com.midouz.change_phone";
 const generalBroadCast = "com.midouz.change_phone.GENERAL_RECEIVER";
 
 class CommandService {
-  final Shell _shell = Shell();
+  final Shell shell = Shell();
   final LogCubit logCubit = sl();
   final ShellService _shellService = sl();
   final ApkFileService _apkFileService = sl();
@@ -85,53 +85,89 @@ class CommandService {
     required Command command,
     String? serialNumber,
     int port = 5555,
+    bool isLogged = true,
   }) async {
     if (command is ChangeRandomDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
       var deviceInfo = generateRandomDeviceInfo();
-      return await _changeDeviceInfo(
-        deviceInfo: deviceInfo,
+      return _shellService.returnCommandResult(
+        result: await _changeDeviceInfo(
+          deviceInfo: deviceInfo,
+          serialNumber: serialNumber,
+        ),
         serialNumber: serialNumber,
+        isLogged: isLogged,
       );
     }
 
     if (command is ChangeDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _changeDeviceInfo(
-        deviceInfo: command.deviceInfo,
+
+      return _shellService.returnCommandResult(
+        result: await _changeDeviceInfo(
+          deviceInfo: command.deviceInfo,
+          serialNumber: serialNumber,
+        ),
         serialNumber: serialNumber,
+        isLogged: isLogged,
       );
     }
 
     if (command is ChangeGeoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _changeGeo(command: command, serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _changeGeo(command: command, serialNumber: serialNumber),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is BackupCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _backupPhone(command: command, serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _backupPhone(
+          command: command,
+          serialNumber: serialNumber,
+        ),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is RestoreBackupCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _restorePhone(command: command, serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _restorePhone(
+          command: command,
+          serialNumber: serialNumber,
+        ),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is PushAndRunShellScriptCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return await _pushAndRunShellScript(
-        command: command,
+      return _shellService.returnCommandResult(
+        result: await _pushAndRunShellScript(
+          command: command,
+          serialNumber: serialNumber,
+        ),
         serialNumber: serialNumber,
+        isLogged: isLogged,
       );
     }
 
     if (command is WaitCommand) {
       await Future.delayed(Duration(seconds: command.delayInSecond));
-      return CommandResult(
-        success: true,
-        message: "Waited for ${command.delayInSecond} seconds",
-        serialNumber: serialNumber,
+      return _shellService.returnCommandResult(
+        result: CommandResult(
+          success: true,
+          message: "Waited for ${command.delayInSecond} seconds",
+          serialNumber: serialNumber,
+        ),
+        serialNumber: serialNumber ?? "",
+        isLogged: isLogged,
       );
     }
 
@@ -150,30 +186,57 @@ class CommandService {
 
     if (command is GetSpoofedDeviceInfoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return _getSpoofedDeviceInfo(serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _getSpoofedDeviceInfo(serialNumber: serialNumber, isLogged: isLogged),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is GetSpoofedGeoCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return _getSpoofedGeo(serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _getSpoofedGeo(serialNumber: serialNumber, isLogged: isLogged),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is ReplayTraceScriptCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return _replayTraceScript(serialNumber: serialNumber, command: command);
+      return _shellService.returnCommandResult(
+        result: await _replayTraceScript(
+          command: command,
+          serialNumber: serialNumber,
+        ),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is ZipDirectoryCommand) {
-      return _zipDirectory(command: command);
+      return _shellService.returnCommandResult(
+        result: await _zipDirectory(command: command),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is UnzipCommand) {
-      return _unzip(command: command);
+      return _shellService.returnCommandResult(
+        result: await _unzip(command: command),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is GetProxyCommand) {
       if (serialNumber == null) throw Exception("Serial Number is null");
-      return _getProxy(serialNumber: serialNumber);
+      return _shellService.returnCommandResult(
+        result: await _getProxy(serialNumber: serialNumber, isLogged: isLogged),
+        serialNumber: serialNumber,
+        isLogged: isLogged,
+      );
     }
 
     if (command is BroadCastCommand) {
@@ -183,19 +246,24 @@ class CommandService {
           command: _buildBroadcastCommand(command: command),
         ),
         serialNumber: serialNumber,
+        isLogged: isLogged,
       );
     }
 
     String fullCommand = _buildCommand(command, serialNumber, port);
 
-    logCubit.log(
-      title: "ADB Command",
-      message: fullCommand,
-      type: LogType.DEBUG,
-    );
+    if (isLogged) {
+      logCubit.log(
+        title: "Execute command",
+        message: fullCommand,
+        type: LogType.DEBUG,
+      );
+    }
+
     return _shellService.runShell(
       serialNumber: serialNumber,
-      run: () => _shell.run(fullCommand),
+      run: () => shell.run(fullCommand),
+      isLogged: isLogged,
     );
   }
 
@@ -388,15 +456,22 @@ class CommandService {
   Future<List<CommandResult>> runCommandOnMultipleDevices({
     required List<String> deviceSerials,
     required Command command,
+    isLogged = true,
   }) async {
-    logCubit.log(
-      title: "Running on multiple devices",
-      message: "$deviceSerials -> $command",
-    );
+    if (isLogged) {
+      logCubit.log(
+        title: "Running on multiple devices",
+        message: "$deviceSerials -> $command",
+      );
+    }
 
     List<Future<CommandResult>> tasks =
         deviceSerials.map((serial) async {
-          return await runCommand(command: command, serialNumber: serial);
+          return await runCommand(
+            command: command,
+            serialNumber: serial,
+            isLogged: isLogged,
+          );
         }).toList();
 
     return await Future.wait(tasks);
@@ -426,11 +501,22 @@ class CommandService {
       var result = await task();
       if (!result.success) {
         return Left(
-          _shellService.logError(serialNumber, result.message, result.error),
+          CommandResult(
+            success: false,
+            message: result.message,
+            error: result.error,
+            serialNumber: serialNumber,
+          ),
         );
       }
     }
-    return Right(_shellService.logSuccess(serialNumber, successMessage));
+    return Right(
+      CommandResult(
+        success: true,
+        message: successMessage,
+        serialNumber: serialNumber,
+      ),
+    );
   }
 
   Future<CommandResult> flashRom({required String serialNumber}) async {
@@ -528,7 +614,11 @@ class CommandService {
 
         // Check if 'twrp' appears in the output
         if (result.stdout.toString().contains('twrp')) {
-          return _shellService.logSuccess(deviceSerial, "TWRP detected");
+          return CommandResult(
+            success: true,
+            message: "TWRP detected",
+            serialNumber: deviceSerial,
+          );
         } else {
           // Get device state
           await Process.run('adb', [
@@ -539,10 +629,11 @@ class CommandService {
           await Future.delayed(Duration(seconds: 2));
         }
       } catch (e) {
-        return _shellService.logError(
-          deviceSerial,
-          "TWRP not detected",
-          e.toString(),
+        return CommandResult(
+          success: false,
+          message: "TWRP not detected",
+          error: e.toString(),
+          serialNumber: deviceSerial,
         );
       }
       await Future.delayed(Duration(seconds: 2));
@@ -563,7 +654,11 @@ class CommandService {
 
         // Check if the device serial appears in the output
         if (result.stdout.toString().contains(deviceSerial)) {
-          return _shellService.logSuccess(deviceSerial, "Fastboot detected");
+          return CommandResult(
+            success: true,
+            message: "Fastboot detected",
+            serialNumber: deviceSerial,
+          );
         }
       } catch (e) {
         logCubit.log(
@@ -571,20 +666,21 @@ class CommandService {
           message: e.toString(),
           type: LogType.DEBUG,
         );
-        return _shellService.logError(
-          deviceSerial,
-          "Fastboot not detected",
-          e.toString(),
+        return CommandResult(
+          success: false,
+          message: "Fastboot error",
+          error: e.toString(),
+          serialNumber: deviceSerial,
         );
       }
 
       await Future.delayed(Duration(seconds: 2));
       i++;
     }
-    return _shellService.logError(
-      deviceSerial,
-      "Fastboot not detected",
-      "Timeout",
+    return CommandResult(
+      success: false,
+      message: "Fastboot not detected",
+      serialNumber: deviceSerial,
     );
   }
 
@@ -611,18 +707,22 @@ class CommandService {
           ], runInShell: true);
 
           if (bootResult.stdout.toString().trim() == '1') {
-            return _shellService.logSuccess(deviceSerial, "Phone fully booted");
+            return CommandResult(
+              success: true,
+              message: "Phone booted successfully",
+              serialNumber: deviceSerial,
+            );
           }
         }
 
         await Future.delayed(Duration(seconds: 2));
       } catch (e) {
-        return _shellService.logError(
-          deviceSerial,
-          "Phone boot check error",
-          e.toString(),
+        return CommandResult(
+          success: false,
+          message: "Phone boot error",
+          error: e.toString(),
+          serialNumber: deviceSerial,
         );
-        // Don't return failure yet, let it retry
       }
       await Future.delayed(Duration(seconds: 2));
       i++;
@@ -820,8 +920,6 @@ class CommandService {
     required String serialNumber,
     required DeviceInfo deviceInfo,
   }) async {
-    debugPrint("command: "+ _buildChangeDeviceBroadcastCommand(deviceInfo));
-
     var result = await executeMultipleCommandsOn1Device(
       tasks: [
         () => runCommand(
@@ -1135,23 +1233,25 @@ class CommandService {
     return DeviceConnectionStatus.notDetected;
   }
 
-  Future<List<AdbDevice>> deviceList() async {
+  Future<List<AdbDevice>> deviceList({
+    bool isLogged = true
+}) async {
     List<AdbDevice> devices = [];
 
-    // Check ADB devices (includes booted, recovery, sideload states)
-    final adbOutput = await runCommand(command: ListDevicesCommand());
+    // Check ADB devices (includes booted, recovery, side load states)
+    final adbOutput = await runCommand(
+      command: ListDevicesCommand(),
+      isLogged: isLogged,
+    );
     devices.addAll(await _parseAdbDevices(adbOutput.message));
 
     // Check Fastboot devices
     final fastbootOutput = await runCommand(
       command: CustomCommand(command: "fastboot devices"),
+      isLogged: isLogged,
     );
     devices.addAll(_parseFastbootDevices(fastbootOutput.message));
 
-    logCubit.log(
-      title: "Device List",
-      message: "Found ${devices.length} devices",
-    );
     return devices;
   }
 
@@ -1401,23 +1501,23 @@ class CommandService {
               p.join(deviceLocalBackupDir.path, backupName),
             );
             if (!await dir.exists()) {
-              return _shellService.logError(
-                serialNumber,
-                "Backup folder not found",
-                "Backup folder not found at ${dir.path}",
-              );
+              return CommandResult(success: false, message: "Folder not found");
             }
             await dir.delete(recursive: true);
-            return _shellService.logSuccess(
-              serialNumber,
-              "Delete folder successfully",
+            return CommandResult(
+              success: true,
+              message: "Delete folder successfully",
             );
           } catch (e) {
-            _shellService.logError(serialNumber, "", e.toString());
+            CommandResult(
+              success: false,
+              message: "Error deleting folder",
+              error: e.toString(),
+            );
           }
-          return _shellService.logSuccess(
-            serialNumber,
-            "Delete folder successfully",
+          return CommandResult(
+            success: true,
+            message: "Delete folder successfully",
           );
         },
       ],
@@ -1446,11 +1546,7 @@ class CommandService {
     File backupFile = File(backupFilePath);
 
     if (!await backupFile.exists()) {
-      return _shellService.logError(
-        serialNumber,
-        "Backup not found",
-        "Backup not found at $backupFilePath",
-      );
+      return CommandResult(success: false, message: "Backup file not found");
     }
 
     var tempPhoneBackupPath = _backUpService.getSpecificTempPhoneBackupPath(
@@ -1532,24 +1628,20 @@ class CommandService {
           try {
             Directory dir = Directory(localBackupDir);
             if (!await dir.exists()) {
-              return _shellService.logError(
-                serialNumber,
-                "Backup folder not found",
-                "Backup folder not found at ${dir.path}",
-              );
+              return CommandResult(success: false, message: "Folder not found");
             }
             await dir.delete(recursive: true);
-            return _shellService.logSuccess(
-              serialNumber,
-              "Delete folder successfully",
+            return CommandResult(
+              success: true,
+              message: "Delete folder successfully",
             );
           } catch (e) {
-            _shellService.logError(serialNumber, "", e.toString());
+            return CommandResult(
+              success: false,
+              message: "Error deleting folder",
+              error: e.toString(),
+            );
           }
-          return _shellService.logSuccess(
-            serialNumber,
-            "Delete folder successfully",
-          );
         },
       ],
       successMessage: "Restore successfully",
@@ -1589,10 +1681,9 @@ class CommandService {
       p.join(Directory.current.path, "dependency", "scripts", scriptName),
     );
     if (!(await script.exists())) {
-      return _shellService.logError(
-        serialNumber,
-        "Script not found",
-        "Script not found at ${script.path}",
+      return CommandResult(
+        success: false,
+        message: "Script $scriptName not found",
       );
     }
     var result = await executeMultipleCommandsOn1Device(
@@ -1633,6 +1724,7 @@ class CommandService {
 
   Future<CommandResult> _getSpoofedDeviceInfo({
     required String serialNumber,
+    bool isLogged = true
   }) async {
     var phoneSpoofedDeviceInfoPath =
         "/data/local/tmp/spoof/spoofed_device_info.properties";
@@ -1640,7 +1732,9 @@ class CommandService {
       command: CustomAdbCommand(
         command: "shell cat $phoneSpoofedDeviceInfoPath",
       ),
+      isLogged: isLogged,
     );
+
     if (!result.success) {
       return result;
     }
@@ -1653,13 +1747,17 @@ class CommandService {
     );
   }
 
-  Future<CommandResult> _getSpoofedGeo({required String serialNumber}) async {
+  Future<CommandResult> _getSpoofedGeo({
+    required String serialNumber,
+    isLogged = true,
+  }) async {
     var phoneSpoofedDeviceInfoPath =
         "/data/local/tmp/spoof/spoofed_geo.properties";
     var result = await runCommand(
       command: CustomAdbCommand(
         command: "shell cat $phoneSpoofedDeviceInfoPath",
       ),
+      isLogged: isLogged,
     );
     if (!result.success) {
       return result;
@@ -1694,51 +1792,45 @@ class CommandService {
 
     // Map the properties to DeviceInfo
     return DeviceInfo(
-      model: properties['model'] ?? '',
-      brand: properties['brand'] ?? '',
-      manufacturer: properties['manufacturer'] ?? '',
-      serialNo: properties['serial'] ?? '',
-      device: properties['device'] ?? '',
-      productName: properties['product'] ?? '',
-      releaseVersion: properties['release'] ?? '',
-      sdkVersion: properties['sdk'] ?? '',
-      fingerprint: properties['fingerprint'] ?? '',
-      androidId: properties['android_id'] ?? '',
-      imei: properties['imei'] ?? '',
-      advertisingId: properties['ad_id'] ?? '',
-      ssid: properties['ssid'] ?? '',
-      macAddress: properties['mac_address'] ?? '',
-      height:
-          properties['height'] != null
-              ? int.tryParse(properties['height']!)
-              : null,
-      width:
-          properties['width'] != null
-              ? int.tryParse(properties['width']!)
-              : null,
-      androidSerial: properties['android_serial'] ?? '',
-      phoneNumber: properties['phone_number'] ?? '',
-      glVendor: properties['gl_vendor'] ?? '',
-      glRender: properties['gl_render'] ?? '',
-      hardware: properties['hardware'] ?? '',
-      id: properties['id'] ?? '',
-      host: properties['host'] ?? '',
-      radio: properties['radio'] ?? '',
-      bootloader: properties['bootloader'] ?? '',
-      display: properties['display'] ?? '',
-      board: properties['board'] ?? '',
-      codename: properties['codename'] ?? '',
-      subscriberId: properties['subscriber_id'] ?? '',
-      serialSimNumber: properties['serial_sim_number'] ?? '',
-      bssid: properties['bssid'] ?? '',
-      operator: properties['operator'] ?? '',
-      operatorName: properties['operator_name'] ?? '',
-      countryIso: properties['country_iso'] ?? '',
-      userAgent: properties['user_agent'] ?? '',
-      osVersion: properties['os_version'] ?? '',
-      macHardware: properties['mac_hardware'] ?? '',
-      wifiIp: properties['wifi_ip'] ?? '',
-      versionChrome: properties['version_chrome'] ?? '',
+      model: properties['MODEL'] ?? '',
+      brand: properties['BRAND'] ?? '',
+      manufacturer: properties['MANUFACTURER'] ?? '',
+      serialNo: properties['SERIAL'] ?? '',
+      device: properties['DEVICE'] ?? '',
+      productName: properties['PRODUCT'] ?? '',
+      releaseVersion: properties['RELEASE'] ?? '',
+      sdkVersion: properties['SDK'] ?? '',
+      fingerprint: properties['FINGERPRINT'] ?? '',
+      androidId: properties['ANDROID_ID'] ?? '',
+      imei: properties['IMEI'] ?? '',
+      advertisingId: properties['AD_ID'] ?? '',
+      ssid: properties['WIFI_NAME'] ?? '',
+      macAddress: properties['MAC_ADDRESS'] ?? '',
+      height: int.tryParse(properties['HEIGHT'] ?? ''),
+      width: int.tryParse(properties['WIDTH'] ?? ''),
+      androidSerial: properties['ANDROID_SERIAL'] ?? '',
+      phoneNumber: properties['PHONE_NUMBER'] ?? '',
+      glVendor: properties['GL_VENDOR'] ?? '',
+      glRender: properties['GL_RENDER'] ?? '',
+      hardware: properties['HARDWARE'] ?? '',
+      id: properties['ID'] ?? '',
+      host: properties['HOST'] ?? '',
+      radio: properties['RADIO'] ?? '',
+      bootloader: properties['BOOTLOADER'] ?? '',
+      display: properties['DISPLAY'] ?? '',
+      board: properties['BOARD'] ?? '',
+      codename: properties['CODENAME'] ?? '',
+      subscriberId: properties['SUBSCRIBER_ID'] ?? '',
+      serialSimNumber: properties['SERIAL_SIM_NUMBER'] ?? '',
+      bssid: properties['BSSID'] ?? '',
+      operator: properties['OPERATOR'] ?? '',
+      operatorName: properties['OPERATOR_NAME'] ?? '',
+      countryIso: properties['COUNTRY_ISO'] ?? '',
+      userAgent: properties['USER_AGENT'] ?? '',
+      osVersion: properties['OS_VERSION'] ?? '',
+      macHardware: properties['MAC_HARDWARE'] ?? '',
+      wifiIp: properties['WIFI_IP'] ?? '',
+      versionChrome: properties['VERSION_CHROME'] ?? '',
     );
   }
 
@@ -1786,10 +1878,9 @@ class CommandService {
       final sourceDir = Directory(sourceDirPath);
 
       if (!await sourceDir.exists()) {
-        return _shellService.logError(
-          null,
-          "",
-          "Source directory $sourceDirPath not found",
+        return CommandResult(
+          success: false,
+          message: "Source directory $sourceDirPath not found",
         );
       }
 
@@ -1816,24 +1907,25 @@ class CommandService {
               ArchiveFile(relativePath, fileBytes.length, fileBytes),
             );
           } catch (fileError) {
-            debugPrint("Failed to process file ${entity.path}: $fileError");
-            return _shellService.logError(
-              null,
-              "",
-              "Failed to process file ${entity.path}: $fileError",
+            return CommandResult(
+              success: false,
+              message: "Failed to process file ${entity.path}: $fileError",
             );
           }
         }
       }
 
-      debugPrint("Encoding ZIP file...");
       final zipBytes = encoder.encode(archive);
-      debugPrint("Writing ZIP to $zipFilePath...");
       await zipFile.writeAsBytes(zipBytes);
-      return _shellService.logSuccess(null, "Zipped directory successfully");
+      return CommandResult(
+        success: true,
+        message: "Zipped directory successfully",
+      );
     } catch (e) {
-      debugPrint("Error zipping directory: $e");
-      return _shellService.logError(null, "", "Error zipping directory: $e");
+      return CommandResult(
+        success: false,
+        message: "Error zipping directory: $e",
+      );
     }
   }
 
@@ -1844,10 +1936,9 @@ class CommandService {
       final zipFile = File(zipFilePath);
 
       if (!await zipFile.exists()) {
-        return _shellService.logError(
-          null,
-          "",
-          "ZIP file $zipFilePath not found",
+        return CommandResult(
+          success: false,
+          message: "ZIP file $zipFilePath not found",
         );
       }
 
@@ -1881,11 +1972,9 @@ class CommandService {
             await outputFile.writeAsBytes(data);
             debugPrint("Extracted file: $filePath");
           } catch (fileError) {
-            debugPrint("Failed to extract file $filePath: $fileError");
-            return _shellService.logError(
-              null,
-              "",
-              "Failed to extract file $filePath: $fileError",
+            return CommandResult(
+              success: false,
+              message: "Failed to extract file $filePath: $fileError",
             );
           }
         } else {
@@ -1893,23 +1982,25 @@ class CommandService {
           final dir = Directory(filePath);
           if (!await dir.exists()) {
             await dir.create(recursive: true);
-            debugPrint("Created directory: $filePath");
           }
         }
       }
 
-      return _shellService.logSuccess(null, "Unzipped file successfully");
+      return CommandResult(
+        success: true,
+        message: "Unzipped file successfully",
+      );
     } catch (e) {
-      debugPrint("Error unzipping file: $e");
-      return _shellService.logError(null, "", "Error unzipping file: $e");
+      return CommandResult(success: false, message: "Error unzipping file: $e");
     }
   }
 
-  Future<CommandResult> _getProxy({required String serialNumber}) async {
+  Future<CommandResult> _getProxy({required String serialNumber, bool isLogged = true}) async {
     var result = await runCommand(
       command: CustomAdbCommand(
         command: "shell settings get global http_proxy",
       ),
+      isLogged: isLogged,
     );
     if (!result.success) {
       return result;
